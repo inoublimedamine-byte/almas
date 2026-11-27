@@ -24,11 +24,12 @@ body{margin:0;padding:14px;background:#f5f0e8;color:#30251b;font-family:system-u
 <body>
 <div class="ctl">
   <label for="base">عنوان صفحة المنيو</label>
-  <input id="base" value="https://inoublimedamine-byte.github.io/almas/menu.html">
+  <input id="base" value="https://inoublimedamine-byte.github.io/Almascoffee/menu.html">
   <div class="row">
     <div><label for="n">عدد الطاولات</label><input id="n" type="number" min="1" max="40" value="8" style="direction:rtl"></div>
     <div style="align-self:end"><button id="go" style="width:100%">توليد</button></div>
   </div>
+  <div style="font-size:12px;color:#8b7b68">QR للخارج: كل حريف يتحصّل على رقم تيكي خاص بيه (من 100).</div>
   <button id="pr">طباعة</button>
 </div>
 <div class="sheet" id="sheet"></div>
@@ -44,6 +45,11 @@ function draw() {
     out.push('<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) +
       '<b>طاولة ' + i + '</b><small>امسح الكود باش تطلب</small></div>');
   }
+  // QR général (le client choisit sa table) + QR à emporter (un numéro de ticket par client)
+  const card = (url, title, sub) => { const q = qrcode(0, 'M'); q.addData(url); q.make();
+    return '<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) + '<b>' + title + '</b><small>' + sub + '</small></div>'; };
+  out.push(card(base + '?n=' + n, 'QR عام', 'امسح الكود، اختار طاولتك وأطلب'));
+  out.push(card(base + '?emporter=1', '🥡 للخارج', 'emporter — كل حريف يتحصّل على رقم'));
   $('sheet').innerHTML = out.join('');
 }
 $('go').onclick = draw;

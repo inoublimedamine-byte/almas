@@ -73,17 +73,28 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
 
 <script>
 // ===== À CONFIGURER =====
-const SB_URL = 'https://VOTRE-PROJET.supabase.co';
-const SB_KEY = 'VOTRE_CLE_ANON';      // clé "anon" uniquement, JAMAIS la clé service_role
-const OWNER_WA = '216XXXXXXXX';       // numéro WhatsApp du patron, sans + ni espaces
+const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
+const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz';      // clé "anon" uniquement, JAMAIS la clé service_role
+const OWNER_WA = '21624888838';       // numéro WhatsApp du patron, sans + ni espaces
 // ========================
 
 const $ = id => document.getElementById(id);
 const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => (n / 1000).toFixed(3) + ' د.ت';
-const tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
+let tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
+const qs = new URLSearchParams(location.search);
+const takeaway = qs.get('emporter') === '1';                 // QR « à emporter » : ?table=N&emporter=1
+const nTables = Math.max(0, Math.min(40, parseInt(qs.get('n'), 10) || 0)); // QR général : ?n=8
+if (takeaway) {   // chaque client à emporter reçoit son propre numéro de ticket (100-999)
+  const TK = 'almas_take_no';
+  let k = 0; try { k = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
+  if (k < 100) { k = 100 + Math.floor(Math.random() * 900); try { localStorage.setItem(TK, k); } catch (_) {} }
+  tableNo = k;
+}
+const tableLabel = takeaway ? '🥡 للخارج · رقم ' + tableNo : 'طاولة ' + tableNo;
 const LS = 'almas_order_' + tableNo;
-const H = {apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json'};
+const H = {apikey: SB_KEY, 'Content-Type': 'application/json'};
+if (SB_KEY.startsWith('eyJ')) H.Authorization = 'Bearer ' + SB_KEY; // ancienne clé JWT seulement
 const STATUS = {
   nouvelle: 'الكوموند وصلت، في الانتظار',
   acceptee: 'قيد التحضير',
@@ -133,7 +144,7 @@ $('bSend').onclick = async () => {
     const res = await rpc('place_order', {
       p_table: tableNo,
       p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
-      p_note: $('note').value.trim() || null
+      p_note: ((takeaway ? '🥡 EMPORTER ' : '') + $('note').value.trim()).trim() || null
     });
     orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false});
     saveOrders(); cart = {}; $('note').value = '';
@@ -148,7 +159,7 @@ $('bSend').onclick = async () => {
 
 function showOrder() {
   $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); $('vOrder').classList.remove('hide');
-  $('oTable').textContent = 'طاولة ' + tableNo;
+  $('oTable').textContent = tableLabel;
   paint(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
 }
 
@@ -178,7 +189,7 @@ function drawBill(open) {
   catch (_) { $('qr').textContent = ids.join(' '); }
   const m = {};
   open.forEach(o => o.lines.forEach(l => { const k = l.name + '|' + l.price; m[k] = m[k] || {name: l.name, price: l.price, qty: 0}; m[k].qty += l.qty; }));
-  const msg = ['حساب — طاولة ' + tableNo, ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
+  const msg = ['حساب — ' + tableLabel, ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
     'المجموع: ' + money(open.reduce((s, o) => s + o.total, 0)), 'كود: ' + ids.map(i => i.slice(0, 8)).join(' ')].join('\n');
   $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
 }
@@ -202,11 +213,11 @@ $('bBill').onclick = async () => {
   try { await Promise.all(open.map(o => rpc('request_bill', {p_id: o.id}))); open.forEach(o => o.bill = true); saveOrders(); paint(); }
   catch (_) { $('err2').textContent = 'ما تبعثش الطلب. عاود جرّب.'; }
 };
-$('bNew').onclick = () => { orders = []; saveOrders(); location.reload(); };
+$('bNew').onclick = () => { orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem('almas_take_no'); } catch (_) {} } location.reload(); };
 
 async function openMenu() {
   if (!items.length) {
-    try { items = await api('menu_items?select=id,name,price_millimes,category&order=sort'); }
+    try { items = await api('menu_items?select=id,name,price_millimes,category&available=eq.true&order=sort'); }
     catch (_) {
       if (orders.length) { $('err2').textContent = 'المنيو ما تحمّلش. عاود جرّب.'; return; }
       $('list').innerHTML = '<div class="box">المنيو ما تحمّلش. حدّث الصفحة.</div>'; return;
@@ -220,12 +231,21 @@ async function openMenu() {
 $('bAdd').onclick = openMenu;
 $('bBack').onclick = showOrder;
 
+// QR général : le client choisit sa table
+function showPicker() {
+  $('hd').textContent = 'اختار طاولتك';
+  $('bar').classList.add('hide'); $('bBack').classList.add('hide'); $('cats').innerHTML = '';
+  $('list').innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:6px 0">' +
+    Array.from({length: nTables}, (_, i) => `<a class="btn" style="text-decoration:none;text-align:center;margin:0" href="?table=${i + 1}">${i + 1}</a>`).join('') + '</div>';
+}
+
 (async function init() {
+  if (!tableNo && nTables) { showPicker(); return; }
   if (!tableNo) {
     $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }
-  $('hd').textContent = 'طاولة ' + tableNo;
+  $('hd').textContent = tableLabel;
   orders = loadOrders();
   if (orders.length) showOrder(); else openMenu();
 })();

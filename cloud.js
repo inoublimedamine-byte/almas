@@ -1,8 +1,8 @@
 /* Almas — liaison Supabase (chargé APRÈS le script principal de index.html) */
 (function () {
   // ===== À CONFIGURER (mêmes valeurs que dans menu.html) =====
-  const SB_URL = 'https://VOTRE-PROJET.supabase.co';
-  const SB_KEY = 'VOTRE_CLE_ANON'; // clé "anon" uniquement
+  const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
+  const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz'; // clé "anon" uniquement
   // ===========================================================
   if (!window.supabase || SB_KEY.indexOf('VOTRE') === 0) return; // pas configuré : l'app reste 100 % locale
 
@@ -84,8 +84,8 @@
     if (ch) return;
     ch = sb.channel('almas-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, p => {
       const n = p.new || {};
-      if (p.eventType === 'INSERT') { beep(); toast('📲 كوموند جديدة — طاولة ' + n.table_no); }
-      else if (p.eventType === 'UPDATE' && n.bill_requested && !(p.old && p.old.bill_requested)) { beep(); toast('🧾 طاولة ' + n.table_no + ' تطلب الحساب'); }
+      if (p.eventType === 'INSERT') { beep(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
+      else if (p.eventType === 'UPDATE' && n.bill_requested && !(p.old && p.old.bill_requested)) { beep(); toast('🧾 ' + tl(n.table_no) + ' تطلب الحساب'); }
       refreshPending();
     }).subscribe();
   }
@@ -97,14 +97,15 @@
     if (!r.data.length) return toast('ما فماش كوموندات جدّد');
     for (const o of r.data) {
       const txt = o.order_lines.map(l => l.name + ' × ' + l.qty).join('\n') + (o.note ? '\n📝 ' + o.note : '') + '\n\n' + money(o.total_millimes / 1000);
-      const d = await dlg({ title: '📲 طاولة ' + o.table_no, msg: txt, buttons: [{ t: 'قبول وزيد للطاولة', cls: 'gold', v: 'ok' }, { t: 'رفض', v: 'no' }, { t: 'بعد', v: null }] });
+      const d = await dlg({ title: '📲 ' + tl(o.table_no), msg: txt, buttons: [{ t: 'قبول وزيد للطاولة', cls: 'gold', v: 'ok' }, { t: 'رفض', v: 'no' }, { t: 'بعد', v: null }] });
       if (!d || d.v == null) break;
       const st = d.v === 'ok' ? 'acceptee' : 'annulee';
       // le statut ne change que si la commande est encore "nouvelle" : évite un double ajout
       const u = await sb.from('orders').update({ status: st }).eq('id', o.id).eq('status', 'nouvelle').select('id');
       if (u.error || !u.data.length) continue;
       if (d.v === 'ok') {
-        const t = db.tables.find(x => x.id === o.table_no);
+        let t = db.tables.find(x => x.id === o.table_no);
+        if (!t && o.table_no >= 100) { t = { id: o.table_no, items: [], takeaway: true }; db.tables.push(t); } // ticket à emporter
         if (!t) { toast('طاولة ' + o.table_no + ' موش موجودة في التطبيق'); continue; }
         o.order_lines.forEach(l => {
           const pid = (l.menu_items && l.menu_items.local_id) || null, price = l.price_millimes / 1000;
@@ -117,12 +118,38 @@
     refreshPending();
   }
 
+  // --- Bouton « تخدمت » dans le détail d'une table : les commandes acceptées passent à "servie" ---
+  const renderDetail0 = renderTableDetail;
+  renderTableDetail = function () {
+    renderDetail0.apply(this, arguments);
+    const t = db.tables.find(x => x.id === activeTable), box = $('tableDetail');
+    const wrap = box && box.querySelector('.table-detail');
+    if (!user || !t || !t.items.length || !wrap) return;
+    const b = document.createElement('button');
+    b.className = 'btn gold hide'; b.id = 'clServed';
+    const g = wrap.querySelector('.btn.gold:not(#clServed)');
+    g ? wrap.insertBefore(b, g) : wrap.appendChild(b);
+    const tn = t.id;
+    sb.from('orders').select('id', { count: 'exact', head: true }).eq('table_no', tn).eq('status', 'acceptee').then(r => {
+      if (!b.isConnected || r.error || !r.count) return;
+      b.textContent = '✅ تخدمت (' + r.count + ')';
+      b.classList.remove('hide');
+    });
+    b.onclick = async () => {
+      b.disabled = true;
+      const u = await sb.from('orders').update({ status: 'servie' }).eq('table_no', tn).eq('status', 'acceptee').select('id');
+      if (u.error) { b.disabled = false; return toast('ما تبدلتش الحالة. عاود جرّب'); }
+      toast('✅ ' + tl(tn) + ': تخدمت');
+      b.remove();
+    };
+  };
+
   // --- Paiement : quand une table est soldée, ses commandes cloud passent à "payée" ---
   const closeTable0 = closeTable;
   closeTable = async function (id) {
     await closeTable0.apply(this, arguments);
     const t = db.tables.find(x => x.id === id);
-    if (user && t && !t.items.length)
+    if (user && (!t || !t.items.length))
       sb.from('orders').update({ status: 'payee' }).eq('table_no', id).in('status', ['acceptee', 'servie']).then(refreshPending);
   };
 
@@ -140,7 +167,7 @@
     const tot = t ? t.items.reduce((s, c) => s + c.price * c.q, 0) : 0;
     const cloud = open.reduce((s, o) => s + o.total_millimes, 0);
     const d = await dlg({
-      title: '🧾 طاولة ' + tn,
+      title: '🧾 ' + tl(tn),
       msg: 'كوموندات الحريف (' + open.length + '): ' + money(cloud / 1000) + '\nمجموع الطاولة: ' + money(tot) + (pend ? '\n⚠️ ' + pend + ' كوموند ما تقبلتش بعد (اقبلها من 📲)' : ''),
       buttons: [{ t: 'خلاص الطاولة', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }]
     });
