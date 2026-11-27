@@ -6,7 +6,7 @@
   // ===========================================================
   if (!window.supabase || SB_KEY.indexOf('VOTRE') === 0) return; // pas configuré : l'app reste 100 % locale
 
-  const sb = supabase.createClient(SB_URL, SB_KEY);
+  const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage } });
   const $ = id => document.getElementById(id);
   let user = null, ch = null, lastSig = '', timer = null, ac;
 
@@ -40,6 +40,17 @@
     '<button class="btn light hide" id="clBk">☁️ احفظ نسخة احتياطية توّا</button>' +
     '<button class="btn light hide" id="clRs">↩️ استرجاع نسخة من السحاب</button></div>');
 
+  // --- Connexion mémorisée : session persistante + reconnexion automatique si elle saute ---
+  const CRED = 'almas_cl_cred';
+  let manualOut = false;
+  const saveCred = (e, p) => { try { localStorage.setItem(CRED, JSON.stringify({ e, p })); } catch (_) {} };
+  const loadCred = () => { try { return JSON.parse(localStorage.getItem(CRED)); } catch (_) { return null; } };
+  async function autoRelogin() {
+    const k = loadCred(); if (!k || user) return;
+    const r = await sb.auth.signInWithPassword({ email: k.e, password: k.p });
+    if (r.error && /invalid/i.test(r.error.message || '')) { try { localStorage.removeItem(CRED); } catch (_) {} }
+  }
+
   // --- Connexion ---
   async function onUser(u) {
     user = u;
@@ -52,14 +63,17 @@
     if (u) { listen(); refreshPending(); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
     else if (ch) { sb.removeChannel(ch); ch = null; }
   }
-  sb.auth.onAuthStateChange((_e, s) => onUser(s && s.user));
-  sb.auth.getSession().then(r => onUser(r.data.session && r.data.session.user));
+  sb.auth.onAuthStateChange((_e, s) => { onUser(s && s.user); if (_e === 'SIGNED_OUT' && !manualOut) setTimeout(autoRelogin, 500); });
+  sb.auth.getSession().then(r => { onUser(r.data.session && r.data.session.user); if (!r.data.session) autoRelogin(); });
   $('clIn').onclick = async () => {
-    const r = await sb.auth.signInWithPassword({ email: $('clE').value.trim(), password: $('clP').value });
+    const em = $('clE').value.trim(), pw = $('clP').value;
+    manualOut = false;
+    const r = await sb.auth.signInWithPassword({ email: em, password: pw });
+    if (!r.error) saveCred(em, pw);
     $('clP').value = '';
     toast(r.error ? 'الدخول فشل: تأكد من الإيميل وكلمة السر' : 'تعمل الدخول');
   };
-  $('clOut').onclick = () => sb.auth.signOut();
+  $('clOut').onclick = () => { manualOut = true; try { localStorage.removeItem(CRED); } catch (_) {} sb.auth.signOut(); };
 
   // --- Prix et articles : app -> Supabase (après chaque sauvegarde locale) ---
   async function syncMenu(force) {
