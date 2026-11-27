@@ -1,8 +1,8 @@
 /* Almas — liaison Supabase (chargé APRÈS le script principal de index.html) */
 (function () {
   // ===== À CONFIGURER (mêmes valeurs que dans menu.html) =====
-  const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
-  const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz'; // clé "anon" uniquement
+  const SB_URL = 'https://VOTRE-PROJET.supabase.co';
+  const SB_KEY = 'VOTRE_CLE_ANON'; // clé "anon" uniquement
   // ===========================================================
   if (!window.supabase || SB_KEY.indexOf('VOTRE') === 0) return; // pas configuré : l'app reste 100 % locale
 
