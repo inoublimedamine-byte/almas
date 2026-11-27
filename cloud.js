@@ -37,7 +37,7 @@
     }
   };
 
-  const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: store } });
+  const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: store, lock: (n, t, fn) => fn() } }); // lock : évite le blocage au démarrage si l'ancienne page a gardé le verrou
   const $ = id => document.getElementById(id);
   let user = null, ch = null, lastSig = '', timer = null, ac;
 
@@ -64,7 +64,7 @@
     '<button id="clS" class="hbtn"><i>📷</i><em>مسح QR</em></button></div>');
   const sec = $('settings');
   if (sec) sec.insertAdjacentHTML('beforeend',
-    '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0">…</div>' +
+    '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0">… (cloud v2)</div>' +
     '<input class="field" id="clE" type="email" autocomplete="username" placeholder="Email">' +
     '<input class="field" id="clP" type="password" autocomplete="current-password" placeholder="كلمة السر">' +
     '<button class="btn gold hide" id="clIn">دخول</button><button class="btn light hide" id="clOut">خروج</button>' +
@@ -96,14 +96,21 @@
   window.addEventListener('online', () => autoRelogin());
 
   // --- Connexion ---
+  let ready = false;
+  setTimeout(() => {   // si Supabase n'a rien répondu après 6 s : on affiche l'état réel et on tente la reconnexion automatique
+    if (ready) return;
+    $('clIn').classList.remove('hide'); $('clInfo').textContent = 'موش متصل (cloud v2)';
+    autoRelogin();
+  }, 6000);
   async function onUser(u) {
+    ready = true;
     user = u;
     $('cl').classList.toggle('hide', !u);
     $('clOut').classList.toggle('hide', !u);
     $('clIn').classList.toggle('hide', !!u);
     $('clBk').classList.toggle('hide', !u);
     $('clRs').classList.toggle('hide', !u);
-    $('clInfo').textContent = u ? 'متصل: ' + u.email : 'موش متصل';
+    $('clInfo').textContent = u ? 'متصل: ' + u.email + ' (cloud v2)' : 'موش متصل (cloud v2)';
     if (u) { listen(); refreshPending(); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
     else if (ch) { sb.removeChannel(ch); ch = null; }
   }
