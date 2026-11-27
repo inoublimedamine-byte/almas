@@ -64,7 +64,7 @@ body.app-hidden header,body.app-hidden main,body.app-hidden .bottom{display:none
 <main>
 <div class="summary"><div class="metric"><label>Fond</label><strong id="fondDay">0.000 د.ت</strong></div><div class="metric sales"><label>المقبوض</label><strong id="cashIn">0.000 د.ت</strong></div><div class="metric spent"><label>مصاريف الكاسة</label><strong id="cashOut">0.000 د.ت</strong></div><div class="metric sales drawer"><label>الصندوق</label><strong id="drawer">0.000 د.ت</strong></div><div class="metric sales"><label>مبيعات اليوم</label><strong id="daily">0.000 د.ت</strong></div><div class="metric"><label>كوموندات اليوم</label><strong id="count">0</strong></div><div class="metric spent"><label>غير خالص (<span id="unpaidCount">0</span>)</label><strong id="unpaidSum">0.000 د.ت</strong></div><div class="metric credit"><label>الكريدي</label><strong id="debt">0.000 د.ت</strong></div></div>
 <nav id="tabs"><button data-page="start">الرئيسية</button><button class="active" data-page="sell">البيع</button><button data-page="tables">الطواول</button><button data-page="orders">الكوموندات</button><button data-page="credits">الكريدي</button><button data-page="items">الأرتيكلات</button><button data-page="caisse">الصندوق</button><button data-page="expenses">المصاريف</button><button data-page="acct">المحاسبة</button><button data-page="stock">المخزون</button><button data-page="suppliers">الموردين</button><button data-page="report">التقارير</button><button data-page="settings">الإعدادات</button></nav>
-<section id="start" class="page active"><div class="title">شنوة تحب تخدم؟</div><button class="btn light" id="lockBtn" onclick="cashierOn()" style="margin:0 0 10px">🔒 وضع الكاشي (سكّر الصفحات الحساسة)</button><button class="btn gold hide" id="unlockBtn" onclick="cashierOff()" style="margin:0 0 10px">🔓 خروج من وضع الكاشي (كلمة سر صاحب المحل)</button><div class="start-choices"><div class="start-choice table-choice" onclick="navigate('tables')"><div class="choice-icon">🪑</div><strong>خدمة على طاولة</strong><small>اختار رقم الطاولة، زيد المشروبات وسجّل الكوموند</small></div><div class="start-choice passenger-choice" onclick="startPassenger()"><div class="choice-icon">🛍️</div><strong>Client passager</strong><small>بيع مباشر من غير طاولة</small></div></div>
+<section id="start" class="page active"><div class="title">شنوة تحب تخدم؟</div><button class="btn gold" onclick="openClosing()" style="margin:0 0 8px">📋 Recette اليوم · إغلاق النهار</button><button class="btn light" onclick="listClosings()" style="margin:0 0 10px">🗂️ تذاكر الإغلاق المسجّلة</button><div class="start-choices"><div class="start-choice table-choice" onclick="navigate('tables')"><div class="choice-icon">🪑</div><strong>خدمة على طاولة</strong><small>اختار رقم الطاولة، زيد المشروبات وسجّل الكوموند</small></div><div class="start-choice passenger-choice" onclick="startPassenger()"><div class="choice-icon">🛍️</div><strong>Client passager</strong><small>بيع مباشر من غير طاولة</small></div></div>
 <div class="title" style="margin-top:20px">الإدارة</div><div class="home-grid">
 <div class="hcard" onclick="navigate('orders')"><span class="hb" id="bdgOrders">0</span><i>🧾</i><strong>الكوموندات</strong><small>سجلّ وخلاص</small></div>
 <div class="hcard" onclick="goCredits()"><i>💳</i><strong>الكريدي</strong><small>الحرفاء اللي عليهم</small></div>
@@ -143,7 +143,7 @@ async function showTicket(T){if(!T)return;let r=await dlg({title:'🧾 تذكر�
 function ticketOrder(id){showTicket(orderTicket(id))}
 function ticketTable(id){showTicket(tableTicket(id))}
 function persist(){if(key!=='__none'){try{localStorage.setItem(key,JSON.stringify(db))}catch(e){toast('⚠️ الحفظ فشل (التخزين ممتلئ). صدّر نسخة احتياطية توّا')}}renderAll()}
-function navigate(id){if(cashier&&!CASH_OK.includes(id))id='start';document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));if(id==='tables'){activeTable=null;renderTableDetail();renderTables();}else if(activeTable){activeTable=null;renderTableDetail()}}
+function navigate(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));if(id==='tables'){activeTable=null;renderTableDetail();renderTables();}else if(activeTable){activeTable=null;renderTableDetail()}}
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{if(b.dataset.page==='orders')ordersPendingOnly=false;if(b.dataset.page==='tables')tablesOccupiedOnly=false;navigate(b.dataset.page)});
 function renderGrid(){let catBox=document.getElementById('sellCategories');if(catBox)catBox.innerHTML=categories.map(c=>`<button class="${sellCategory===c?'active':''}" onclick="setSellCategory('${c}')">${c}</button>`).join('');let shown=db.items.map((p,i)=>({...p,i})).filter(p=>(p.category||'Boisson chaude')===sellCategory);document.getElementById('productGrid').innerHTML=shown.length?shown.map(p=>`<div class="prod" onclick="addCart('${p.id}')"><img loading="lazy" src="${safe(p.img)}" alt="${safe(p.name)}"><div class="info"><div class="name">${safe(p.name)}</div><div class="price">${money(p.price)}</div><div class="hint">اضغط للإضافة</div></div></div>`).join(''):'<div class="panel empty">ما فماش سلع في التصنيف هذا</div>'}
 function setSellCategory(c){sellCategory=c;renderGrid()}
@@ -347,32 +347,70 @@ function findAcct(id){let n=nName(id),p=phoneKey(id);return getAccts().find(a=>n
 function lgTab(t){document.getElementById('lgLogin').classList.toggle('hide',t!=='login');document.getElementById('lgReg').classList.toggle('hide',t!=='reg');document.getElementById('tabLogin').classList.toggle('on',t==='login');document.getElementById('tabReg').classList.toggle('on',t==='reg');lgErr('')}
 function lgErr(m){document.getElementById('lgErr').textContent=m||''}
 function initDb(){let d;try{d=JSON.parse(localStorage.getItem(key))}catch(e){}db=d||{items:JSON.parse(JSON.stringify(defaults)),orders:[]};if(!Array.isArray(db.tables))db.tables=Array.from({length:8},(_,i)=>({id:i+1,items:[]}));db.items.forEach(p=>{if(!p.category)p.category=({'إسبريسو':'Boisson chaude','كابوتشينو':'Boisson chaude','تاي':'Boisson chaude','قهوة عربي':'Boisson chaude','ماء':'Boisson froide','مشروب غازي':'Boisson froide','عصير':'Boisson froide','كرواسون':'Petit dej'}[p.name]||'Boisson chaude')});normDb()}
-function startSession(a,remember){cur=a;key=a.key;initDb();if(!db.settings.nameSet){db.settings.name=a.name;db.settings.phone=a.phone;db.settings.nameSet=1}cart=[];activeTable=null;if(remember)localStorage.setItem(SES,a.id);else localStorage.removeItem(SES);document.getElementById('splash').style.display='none';document.body.classList.remove('app-hidden');persist();navigate('start');applyCashier();backupNudge()}
+function startSession(a,remember){cur=a;key=a.key;initDb();if(!db.settings.nameSet){db.settings.name=a.name;db.settings.phone=a.phone;db.settings.nameSet=1}cart=[];activeTable=null;if(remember)localStorage.setItem(SES,a.id);else localStorage.removeItem(SES);document.getElementById('splash').style.display='none';document.body.classList.remove('app-hidden');persist();navigate('start');backupNudge()}
 function doLogin(){let id=document.getElementById('lgId').value.trim(),pw=document.getElementById('lgPw').value;if(!id||!pw)return lgErr('اكتب اسم المقهى ولا الهاتف وكلمة السر');let a=findAcct(id);if(!a)return lgErr('ما لقيناش حساب بهالاسم/الرقم. اعمل مقهى جديد.');if(pwHash(pw,a.salt)!==a.hash)return lgErr('كلمة السر غالطة');lgErr('');document.getElementById('lgPw').value='';startSession(a,document.getElementById('lgRem').checked)}
 function doRegister(){let name=document.getElementById('rgName').value.trim(),phone=document.getElementById('rgPhone').value.trim(),pw=document.getElementById('rgPw').value,pw2=document.getElementById('rgPw2').value;if(name.length<2)return lgErr('اكتب اسم المقهى');if(phoneKey(phone).length<8)return lgErr('رقم الهاتف لازم 8 أرقام على الأقل');if(pw.length<4)return lgErr('كلمة السر لازم 4 أحرف على الأقل');if(pw!==pw2)return lgErr('كلمتين السر موش كيف كيف');if(findAcct(name)||findAcct(phone))return lgErr('فما حساب بنفس الاسم ولا الرقم');let list=getAccts(),id=uid(),salt=uid()+uid();let legacy=!list.length&&localStorage.getItem(LEGACY);let a={id,name,phone,salt,hash:pwHash(pw,salt),key:legacy?LEGACY:'cafe_'+id};list.push(a);setAccts(list);lgErr('');['rgName','rgPhone','rgPw','rgPw2'].forEach(i=>document.getElementById(i).value='');startSession(a,true);toast(legacy?'تعمل الحساب وتحافظت على بياناتك القديمة':'مرحبا بيك في '+name)}
 function logout(){localStorage.removeItem(SES);location.reload()}
 async function changePw(){let o,n1,n2;let r=await dlg({title:'تبديل كلمة السر',html:'<input class="field" id="cp0" type="password" placeholder="كلمة السر القديمة"><input class="field" id="cp1" type="password" placeholder="كلمة السر الجديدة"><input class="field" id="cp2" type="password" placeholder="أعد كتابة الجديدة">',buttons:[{t:'تأكيد',cls:'gold',v:'ok'},{t:'إلغاء',v:null}],onMount:w=>{o=w.querySelector('#cp0');n1=w.querySelector('#cp1');n2=w.querySelector('#cp2')}});if(!r||r.v!=='ok')return;if(pwHash(o.value,cur.salt)!==cur.hash)return toast('كلمة السر القديمة غالطة');if(n1.value.length<4||n1.value!==n2.value)return toast('كلمة السر الجديدة موش صحيحة (4 أحرف على الأقل وتتطابق)');let list=getAccts(),a=list.find(x=>x.id===cur.id);a.salt=uid()+uid();a.hash=pwHash(n1.value,a.salt);setAccts(list);cur=a;toast('تبدّلت كلمة السر')}
 function restoreAccount(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!Array.isArray(d.items)||!Array.isArray(d.orders))throw Error();let ac=d._account;if(!ac||!ac.hash||!ac.salt||!ac.name)return lgErr('هذه نسخة قديمة بلا حساب. اعمل مقهى جديد وبعد استرجعها من الإعدادات.');let list=getAccts();if(findAcct(ac.name)){return lgErr('الحساب موجود في هذا الجهاز. ادخل بكلمة السر.')}let id=uid(),a={id,name:ac.name,phone:ac.phone||'',salt:ac.salt,hash:ac.hash,key:'cafe_'+id};delete d._account;localStorage.setItem(a.key,JSON.stringify(d));list.push(a);setAccts(list);lgTab('login');document.getElementById('lgId').value=a.name;lgErr('');toast('تسترجع «'+a.name+'». ادخل بكلمة السر متاعو.')}catch(err){lgErr('ملف النسخة غير صحيح')}};r.readAsText(f);e.target.value=''}
 function autoLogin(){let id=localStorage.getItem(SES),a=id&&getAccts().find(x=>x.id===id);if(a)startSession(a,true)}
-var CASH_OK=['start','sell','tables','orders','credits'],cashier=false;try{cashier=localStorage.getItem('almas_cashier')==='1'}catch(e){}
-function applyCashier(){
- document.body.classList.toggle('cashier',cashier);
- document.querySelectorAll('[data-page]').forEach(b=>{b.style.display=(cashier&&!CASH_OK.includes(b.dataset.page))?'none':''});
- document.querySelectorAll('.hcard[onclick]').forEach(b=>{let m=/navigate\('(\w+)'\)/.exec(b.getAttribute('onclick')||'');if(m)b.style.display=(cashier&&!CASH_OK.includes(m[1]))?'none':''});
- let a=document.getElementById('lockBtn'),c=document.getElementById('unlockBtn');if(a)a.classList.toggle('hide',cashier);if(c)c.classList.toggle('hide',!cashier);
+
+/* ===== Clôture du jour : recette détaillée + ticket enregistré (db.closures) + impression ===== */
+const hm=d=>new Date(d).toLocaleTimeString('ar-TN',{hour:'2-digit',minute:'2-digit'});
+function printHtml(body){document.getElementById('printArea').innerHTML='<div class="tk">'+body+'</div>';let st=document.getElementById('pgStyle');if(!st){st=document.createElement('style');st.id='pgStyle';document.head.appendChild(st)}st.textContent='@page{size:80mm auto;margin:3mm}';window.onafterprint=()=>{st.textContent=''};setTimeout(()=>{try{window.print()}catch(e){toast('الطباعة ما تخدمش هنا. استعمل واتساب ولا مشاركة')}},120)}
+function buildClose(){
+ let td=dayKey(),os=db.orders.filter(o=>o.day===td&&!o.manual),c=db.cash.filter(x=>x.day===td),m={};
+ os.forEach(o=>(o.items||[]).forEach(i=>{let k=i.name+'|'+i.price;m[k]=m[k]||{name:i.name,price:i.price,q:0};m[k].q+=i.q}));
+ let items=Object.values(m).map(x=>({name:x.name,q:x.q,amt:x.q*x.price})).sort((a,b)=>b.amt-a.amt);
+ let outs=c.filter(x=>x.type==='out'),outC=outs.filter(x=>x.src==='caisse').reduce((s,x)=>s+x.amount,0),outP=outs.filter(x=>x.src!=='caisse').reduce((s,x)=>s+x.amount,0);
+ let fond=sumC(c,'fond'),coll=sumC(c,'in');
+ return {shop:db.settings.name||'',phone:db.settings.phone||'',day:td,date:new Date().toISOString(),seq:1,n:os.length,
+  sales:os.reduce((s,o)=>s+o.total,0),coll,fond,outC,outP,exp:outC+outP,expected:fond+coll-outC,net:coll-outC-outP,
+  credit:os.filter(isCred).reduce((s,o)=>s+o.total-o.paid,0),unpaid:os.filter(isPend).reduce((s,o)=>s+o.total-o.paid,0),
+  items,orders:os.map(o=>({t:o.date,who:o.customer||'',total:o.total,paid:o.paid,credit:!!isCred(o)})),
+  exps:outs.map(x=>({cat:x.cat||'',note:x.note||'',amount:x.amount,src:x.src}))};
 }
-async function cashierOn(){
- if(!(await askConfirm('🔒 وضع الكاشي','تتسكّر المحاسبة والمصاريف والمخزون والإعدادات والأرتيكلات والتقارير. باش ترجعها تحتاج كلمة سر صاحب المحل. تكمّل؟','فعّل')))return;
- cashier=true;try{localStorage.setItem('almas_cashier','1')}catch(e){}applyCashier();navigate('start');
+function closeBody(Z){
+ const L=(a,b,cls)=>`<div class="ln${cls?' '+cls:''}"><span>${a}</span><span>${b}</span></div>`;
+ let d=new Date(Z.date);
+ return `<h2>${safe(Z.shop)}</h2>${Z.phone?`<div class="c">${safe(Z.phone)}</div>`:''}<div class="c big">إغلاق النهار${Z.seq>1?' #'+Z.seq:''}</div><div class="c">${safe(Z.day)} · ${d.toLocaleDateString('ar-TN')} ${hm(Z.date)}</div><hr>`
+ +(Z.items.length?Z.items.map(i=>L(i.q+' × '+safe(i.name),money(i.amt))).join(''):'<div class="c">ما فماش مبيعات</div>')
+ +'<hr>'+L('عدد الكوموندات',Z.n)+L('المبيعات',money(Z.sales),'big')+L('المقبوض',money(Z.coll))
+ +(Z.credit>0?L('كريدي جديد',money(Z.credit)):'')+(Z.unpaid>0?L('غير خالص',money(Z.unpaid)):'')+'<hr>'
+ +(Z.exps.length?'<div class="c">المصاريف</div>'+Z.exps.map(e=>L(safe(e.cat)+(e.note?' — '+safe(e.note):'')+(e.src!=='caisse'?' *':''),'− '+money(e.amount))).join('')+L('مجموع المصاريف','− '+money(Z.exp))+(Z.outP>0?'<div class="c" style="font-size:10px">* مصروف برّا الكاسة</div>':'')+'<hr>':'')
+ +L('fond de caisse',money(Z.fond))+L('المقبوض',money(Z.coll))+L('مصاريف من الكاسة','− '+money(Z.outC))+L('المفروض في الكاسة',money(Z.expected),'big')+L('الصافي (مقبوض − مصاريف)',money(Z.net),'big')
+ +'<hr><div class="c">الكوموندات</div>'+(Z.orders.length?Z.orders.map(o=>L(hm(o.t)+' '+safe(o.who),money(o.total)+(o.credit?' (كريدي)':o.paid<o.total?' (غير خالص)':''))).join(''):'<div class="c">—</div>');
 }
-async function cashierOff(){
- let inp,r=await dlg({title:'🔓 كلمة سر صاحب المحل',html:'<input class="field" id="cashPw" type="password" placeholder="كلمة السر" autocomplete="current-password">',buttons:[{t:'تأكيد',cls:'gold',v:'ok'},{t:'إلغاء',v:null}],onMount:w=>{inp=w.querySelector('#cashPw')}});
- if(!r||r.v!=='ok')return;
- if(!cur||pwHash(inp.value,cur.salt)!==cur.hash)return toast('كلمة السر غالطة');
- cashier=false;try{localStorage.removeItem('almas_cashier')}catch(e){}applyCashier();toast('🔓 رجعت كل الصفحات');
+function closeText(Z){
+ let T=[Z.shop];if(Z.phone)T.push(Z.phone);T.push('إغلاق النهار'+(Z.seq>1?' #'+Z.seq:'')+' — '+Z.day,'------------');
+ Z.items.forEach(i=>T.push(i.q+' × '+i.name+' — '+money(i.amt)));
+ T.push('------------','عدد الكوموندات: '+Z.n,'المبيعات: '+money(Z.sales),'المقبوض: '+money(Z.coll));
+ if(Z.credit>0)T.push('كريدي جديد: '+money(Z.credit));if(Z.unpaid>0)T.push('غير خالص: '+money(Z.unpaid));
+ if(Z.exps.length){T.push('------------','المصاريف:');Z.exps.forEach(e=>T.push('− '+e.cat+(e.note?' — '+e.note:'')+(e.src!=='caisse'?' *':'')+': '+money(e.amount)));T.push('مجموع المصاريف: '+money(Z.exp))}
+ T.push('------------','fond de caisse: '+money(Z.fond),'المفروض في الكاسة: '+money(Z.expected),'الصافي: '+money(Z.net));
+ return T.join('\n');
+}
+async function showClose(Z,saved){
+ let btns=[];if(!saved)btns.push({t:'✅ سكّر النهار وسجّل التذكرة',cls:'gold',v:'save'});
+ btns.push({t:'🖨️ طباعة',cls:saved?'gold':'light',v:'print'},{t:'📲 WhatsApp',v:'wa'},{t:'📤 مشاركة / نسخ',v:'share'},{t:'إغلاق',v:null});
+ let r=await dlg({title:saved?'🧾 تذكرة الإغلاق':'📋 Recette اليوم',html:'<div class="tk" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0;max-height:55vh;overflow:auto">'+closeBody(Z)+'</div>',buttons:btns});
+ if(!r||!r.v)return;
+ if(r.v==='save'){
+  if(db.tables&&db.tables.some(t=>t.items&&t.items.length)&&!(await askConfirm('طواول محلولة','مازال فما طواول فيها كوموندات ما تخلّصتش. تسكّر النهار كيما هو؟','سكّر')))return;
+  db.closures=db.closures||[];Z.date=new Date().toISOString();Z.seq=db.closures.filter(z=>z.day===Z.day).length+1;db.closures.push(Z);persist();toast('تسجّلت تذكرة الإغلاق ✅');return showClose(Z,true);
+ }
+ if(r.v==='print')printHtml(closeBody(Z));
+ else if(r.v==='wa')window.open('https://wa.me/?text='+encodeURIComponent(closeText(Z)),'_blank');
+ else{try{if(navigator.share)await navigator.share({text:closeText(Z)});else{await navigator.clipboard.writeText(closeText(Z));toast('تنسخت التذكرة')}}catch(e){}}
+}
+function openClosing(){showClose(buildClose(),false)}
+async function listClosings(){
+ let L=(db.closures||[]).slice(-30).reverse();if(!L.length)return toast('ما فماش تذاكر مسجّلة بعد');
+ let r=await dlg({title:'🗂️ تذاكر الإغلاق',buttons:L.map((z,i)=>({t:z.day+(z.seq>1?' #'+z.seq:'')+' · '+money(z.sales),v:i})).concat([{t:'إغلاق',v:null}])});
+ if(r&&r.v!=null)showClose(L[r.v],true);
 }
 stockInit();
-renderAll();autoLogin();applyCashier();
+renderAll();autoLogin();
 if(document.addEventListener)document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cur)backupNudge()});
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
 </script>

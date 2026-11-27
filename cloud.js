@@ -257,7 +257,8 @@
     '<div class="panel hide" id="stP"><strong>👥 السيرفورات</strong><div id="stList" style="margin:6px 0"></div>' +
     '<button class="btn gold" id="stAdd">➕ زيد سيرفور</button><button class="btn light" id="stChk">⏰ كوموندات/طواول فوق الساعة</button></div>');
   async function loadStaff() {
-    const r = await sb.from('staff').select('id,name,phone,email').eq('active', true).order('name');
+    const r = await sb.from('staff').select('id,name,phone,email,active').or('active.is.null,active.eq.true').order('name');
+    if (r.error) { $('stList').innerHTML = '<div class="mini" style="color:var(--red)">ما تحمّلتش القائمة: ' + safe(r.error.message) + '</div>'; return; }
     staff = r.data || [];
     $('stList').innerHTML = staff.length ? staff.map(s => '<div class="row"><div class="grow"><strong>' + safe(s.name) + '</strong><small>' + safe([s.phone, s.email].filter(Boolean).join(' · ') || 'بلا رقم') + '</small></div>' +
       '<button class="btn light" style="width:auto;margin:0" data-wa="' + s.id + '">💬</button><button class="btn light" style="width:auto;margin:0 0 0 6px;color:var(--red)" data-del="' + s.id + '">🗑️</button></div>').join('') : '<div class="mini">ما فما حتى سيرفور</div>';
