@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Almas — QR des tables</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+body{margin:0;padding:14px;background:#f5f0e8;color:#30251b;font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif}
+.ctl{max-width:640px;margin:0 auto 16px;display:grid;gap:8px}
+.ctl label{font-size:13px;color:#8b7b68}
+.ctl input{width:100%;padding:12px;border:1px solid #e9dfd1;border-radius:10px;font:inherit;background:#fff;direction:ltr}
+.ctl .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ctl button{min-height:48px;border:0;border-radius:12px;background:#392518;color:#ffe5b7;font:inherit;font-weight:800}
+.sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;max-width:900px;margin:auto}
+.card{background:#fff;border:1px solid #e9dfd1;border-radius:14px;padding:14px;text-align:center;break-inside:avoid}
+.card .brand{font:400 15px Georgia,serif;letter-spacing:4px;color:#8a5f2b}
+.card svg{width:100%;max-width:180px;height:auto;display:block;margin:8px auto}
+.card b{display:block;font-size:22px}
+.card small{display:block;color:#8b7b68;font-size:12px;margin-top:2px}
+@media print{body{background:#fff;padding:0}.ctl{display:none}.sheet{grid-template-columns:repeat(2,1fr);gap:8mm}.card{border:1px solid #999;padding:8mm}.card svg{max-width:60mm}}
+</style>
+</head>
+<body>
+<div class="ctl">
+  <label for="base">عنوان صفحة المنيو</label>
+  <input id="base" value="https://inoublimedamine-byte.github.io/Almascoffee/menu.html">
+  <div class="row">
+    <div><label for="n">عدد الطاولات</label><input id="n" type="number" min="1" max="40" value="8" style="direction:rtl"></div>
+    <div style="align-self:end"><button id="go" style="width:100%">توليد</button></div>
+  </div>
+  <button id="pr">طباعة</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+const $ = id => document.getElementById(id);
+function draw() {
+  const base = $('base').value.trim().replace(/\?.*$/, '');
+  const n = Math.max(1, Math.min(40, parseInt($('n').value, 10) || 1));
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const url = base + '?table=' + i;
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    out.push('<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) +
+      '<b>طاولة ' + i + '</b><small>امسح الكود باش تطلب</small></div>');
+  }
+  $('sheet').innerHTML = out.join('');
+}
+$('go').onclick = draw;
+$('pr').onclick = () => { draw(); window.print(); };
+draw();
+</script>
+</body>
+</html>
