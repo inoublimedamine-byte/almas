@@ -58,13 +58,34 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
 .item .nm small{font-size:15px;color:var(--brown)}
 .item .qty{align-self:flex-end}
 .qty button{width:40px;height:40px}
+/* ===== v4 : vue carreaux (2 par ligne), clic sur la photo = ajouter ===== */
+#list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding-top:12px}
+.tile{position:relative;display:block;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 8px 10px;font:inherit;color:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s}
+.tile:active{transform:scale(.96)}
+.tile .ph{width:100%;aspect-ratio:1/1;border-radius:12px;background:#efe5d7;overflow:hidden;display:grid;place-items:center;font-size:52px}
+.tile .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.tile b{display:block;margin-top:8px;font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile small{display:block;margin-top:2px;font-size:15px;font-weight:800;color:var(--brown)}
+.tile .bd{position:absolute;top:12px;right:12px;min-width:30px;height:30px;padding:0 8px;border-radius:15px;background:var(--green);color:#fff;font-weight:800;font-size:16px;display:grid;place-items:center;box-shadow:0 2px 6px #0003}
+.tile.on{border-color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
+.hint{margin:10px 2px 0;color:var(--muted);font-size:14px;text-align:center}
+.cartbox{text-align:right;border-color:var(--green);margin-top:12px}
+.cartbox h3{margin:0 0 6px;font-size:16px;color:var(--dark)}
+.cl{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.cl .n{flex:1;min-width:0;font-weight:700}
+.cl .q{font-weight:800;color:var(--green)}
+.cl .p{color:var(--muted);font-size:14px;min-width:70px;text-align:left}
+.cl button{width:36px;height:36px;border:0;border-radius:10px;background:#efe5d7;font-size:20px;font-weight:700;color:var(--red)}
+.cartbox .tot{margin:10px 0 0;font-size:17px}
 </style>
 </head>
 <body>
 <header><h1>ALMAS</h1><p id="hd">المنيو</p></header>
 <main>
   <section id="vMenu">
+    <div class="box cartbox hide" id="cartBox"></div>
     <div class="cats" id="cats"></div>
+    <div class="hint">👆 إنزل على التصويرة باش تزيد للكوموند</div>
     <div id="list"></div>
     <textarea id="note" rows="2" maxlength="200" placeholder="ملاحظة (اختياري)، مثلا: بلا سكر"></textarea>
     <div class="err" id="err"></div>
@@ -137,17 +158,21 @@ function renderMenu() {
     const im = (items.find(i => i.category === c && i.image_url) || {}).image_url;
     return `<button class="${c === cat ? 'on' : ''}" data-cat="${safe(c)}"><span class="ci">${im ? `<img src="${safe(im)}" alt="" onerror="this.parentNode.textContent='${emo(c)}'">` : emo(c)}</span>${safe(c)}</button>`;
   }).join('');
-  $('list').innerHTML = items.filter(i => i.category === cat).map(i => `<div class="item" data-id="${i.id}">
-      <div class="ph">${i.image_url ? `<img loading="lazy" src="${safe(i.image_url)}" alt="${safe(i.name)}" onerror="this.parentNode.textContent='${emo(i.category)}'">` : emo(i.category)}</div>
-      <div class="nm"><b>${safe(i.name)}</b>${i.description ? `<span class="ds">${safe(i.description)}</span>` : ''}<small>${money(i.price_millimes)}</small></div>
-      <div class="qty"></div></div>`).join('');
+  $('list').innerHTML = items.filter(i => i.category === cat).map(i => `<button type="button" class="tile" data-id="${i.id}">
+      <div class="ph">${i.image_url ? `<img loading="lazy" src="${safe(i.image_url)}" alt="${safe(i.name)}" onerror="this.parentNode.textContent='${emo(i.category)}'">` : emo(i.category)}<span class="bd hide"></span></div>
+      <b>${safe(i.name)}</b><small>${money(i.price_millimes)}</small></button>`).join('');
   refresh();
 }
 function refresh() {
-  document.querySelectorAll('#list .item').forEach(el => {
-    const id = el.dataset.id, q = cart[id] || 0;
-    el.querySelector('.qty').innerHTML = (q ? `<button data-dec="${id}" aria-label="نقص">−</button><span>${q}</span>` : '') + `<button class="add" data-inc="${id}" aria-label="زيد">+</button>`;
+  document.querySelectorAll('#list .tile').forEach(el => {
+    const q = cart[el.dataset.id] || 0, bd = el.querySelector('.bd');
+    el.classList.toggle('on', q > 0); bd.classList.toggle('hide', !q); bd.textContent = q;
   });
+  const sel = items.filter(i => cart[i.id]);
+  const cb = $('cartBox');
+  cb.classList.toggle('hide', !sel.length);
+  cb.innerHTML = sel.length ? '<h3>🧾 كوموندك</h3>' + sel.map(i => `<div class="cl"><span class="n">${safe(i.name)}</span><span class="q">× ${cart[i.id]}</span><span class="p">${money(i.price_millimes * cart[i.id])}</span><button type="button" data-dec="${i.id}" aria-label="نقص">−</button></div>`).join('')
+    + `<div class="tot"><span>المجموع</span><span>${money(sel.reduce((t, i) => t + i.price_millimes * cart[i.id], 0))}</span></div>` : '';
   const n = Object.values(cart).reduce((a, b) => a + b, 0);
   const tot = items.reduce((s, i) => s + (cart[i.id] || 0) * i.price_millimes, 0);
   $('bSend').disabled = !n;
@@ -155,8 +180,12 @@ function refresh() {
 }
 $('cats').onclick = e => { const b = e.target.closest('[data-cat]'); if (b) { cat = b.dataset.cat; renderMenu(); scrollTo(0, 0); } };
 $('list').onclick = e => {
-  const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
-  if (inc) cart[inc.dataset.inc] = Math.min((cart[inc.dataset.inc] || 0) + 1, 20);
+  const t = e.target.closest('[data-id]');
+  if (t) cart[t.dataset.id] = Math.min((cart[t.dataset.id] || 0) + 1, 20);
+  refresh();
+};
+$('cartBox').onclick = e => {
+  const dec = e.target.closest('[data-dec]');
   if (dec) { const id = dec.dataset.dec; cart[id] = (cart[id] || 1) - 1; if (cart[id] <= 0) delete cart[id]; }
   refresh();
 };
