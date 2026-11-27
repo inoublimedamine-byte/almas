@@ -6,7 +6,38 @@
   // ===========================================================
   if (!window.supabase || SB_KEY.indexOf('VOTRE') === 0) return; // pas configuré : l'app reste 100 % locale
 
-  const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage } });
+  // --- Stockage de la session : IndexedDB (pas limité comme localStorage, que les photos de l'app peuvent remplir)
+  //     + copie dans localStorage quand c'est possible. Une session déjà enregistrée dans localStorage est reprise. ---
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) {}
+  const idb = (() => {
+    let p;
+    const open = () => p || (p = new Promise((res, rej) => {
+      const r = indexedDB.open('almas_cloud', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = (mode, fn) => open().then(d => new Promise((res, rej) => {
+      const t = d.transaction('kv', mode), q = fn(t.objectStore('kv'));
+      t.oncomplete = () => res(q.result); t.onerror = t.onabort = () => rej(t.error);
+    }));
+    return { get: k => tx('readonly', s => s.get(k)), set: (k, v) => tx('readwrite', s => s.put(v, k)), del: k => tx('readwrite', s => s.delete(k)) };
+  })();
+  const store = {
+    async getItem(k) {
+      try { const v = await idb.get(k); if (v != null) return v; } catch (_) {}
+      try { return localStorage.getItem(k); } catch (_) { return null; }
+    },
+    async setItem(k, v) {
+      try { await idb.set(k, v); } catch (_) {}
+      try { localStorage.setItem(k, v); } catch (_) {}
+    },
+    async removeItem(k) {
+      try { await idb.del(k); } catch (_) {}
+      try { localStorage.removeItem(k); } catch (_) {}
+    }
+  };
+
+  const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: store } });
   const $ = id => document.getElementById(id);
   let user = null, ch = null, lastSig = '', timer = null, ac;
 
@@ -33,23 +64,36 @@
     '<button id="clS" class="hbtn"><i>📷</i><em>مسح QR</em></button></div>');
   const sec = $('settings');
   if (sec) sec.insertAdjacentHTML('beforeend',
-    '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0"></div>' +
+    '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0">…</div>' +
     '<input class="field" id="clE" type="email" autocomplete="username" placeholder="Email">' +
     '<input class="field" id="clP" type="password" autocomplete="current-password" placeholder="كلمة السر">' +
-    '<button class="btn gold" id="clIn">دخول</button><button class="btn light hide" id="clOut">خروج</button>' +
+    '<button class="btn gold hide" id="clIn">دخول</button><button class="btn light hide" id="clOut">خروج</button>' +
     '<button class="btn light hide" id="clBk">☁️ احفظ نسخة احتياطية توّا</button>' +
     '<button class="btn light hide" id="clRs">↩️ استرجاع نسخة من السحاب</button></div>');
 
   // --- Connexion mémorisée : session persistante + reconnexion automatique si elle saute ---
   const CRED = 'almas_cl_cred';
   let manualOut = false;
-  const saveCred = (e, p) => { try { localStorage.setItem(CRED, JSON.stringify({ e, p })); } catch (_) {} };
-  const loadCred = () => { try { return JSON.parse(localStorage.getItem(CRED)); } catch (_) { return null; } };
-  async function autoRelogin() {
-    const k = loadCred(); if (!k || user) return;
-    const r = await sb.auth.signInWithPassword({ email: k.e, password: k.p });
-    if (r.error && /invalid/i.test(r.error.message || '')) { try { localStorage.removeItem(CRED); } catch (_) {} }
+  const saveCred = (e, p) => store.setItem(CRED, JSON.stringify({ e, p }));
+  const loadCred = async () => { try { return JSON.parse(await store.getItem(CRED)); } catch (_) { return null; } };
+  let relogging = false;
+  async function autoRelogin(n) {
+    n = typeof n === 'number' ? n : 0;
+    if (relogging || user || manualOut) return;
+    const k = await loadCred(); if (!k || user) return;
+    relogging = true;
+    let retry = false;
+    try {
+      const r = await sb.auth.signInWithPassword({ email: k.e, password: k.p });
+      if (r.error) {
+        if (/invalid login|invalid credentials/i.test(r.error.message || '')) store.removeItem(CRED); // mot de passe changé : on arrête
+        else retry = true;                                                                              // réseau / serveur : on réessaie
+      }
+    } catch (_) { retry = true; }
+    relogging = false;
+    if (retry && n < 6) setTimeout(() => autoRelogin(n + 1), 3000 * (n + 1));
   }
+  window.addEventListener('online', () => autoRelogin());
 
   // --- Connexion ---
   async function onUser(u) {
@@ -63,17 +107,17 @@
     if (u) { listen(); refreshPending(); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
     else if (ch) { sb.removeChannel(ch); ch = null; }
   }
-  sb.auth.onAuthStateChange((_e, s) => { onUser(s && s.user); if (_e === 'SIGNED_OUT' && !manualOut) setTimeout(autoRelogin, 500); });
+  sb.auth.onAuthStateChange((_e, s) => { onUser(s && s.user); if (_e === 'SIGNED_OUT' && !manualOut) setTimeout(() => autoRelogin(), 500); });
   sb.auth.getSession().then(r => { onUser(r.data.session && r.data.session.user); if (!r.data.session) autoRelogin(); });
   $('clIn').onclick = async () => {
     const em = $('clE').value.trim(), pw = $('clP').value;
     manualOut = false;
     const r = await sb.auth.signInWithPassword({ email: em, password: pw });
-    if (!r.error) saveCred(em, pw);
+    if (!r.error) await saveCred(em, pw);
     $('clP').value = '';
     toast(r.error ? 'الدخول فشل: تأكد من الإيميل وكلمة السر' : 'تعمل الدخول');
   };
-  $('clOut').onclick = () => { manualOut = true; try { localStorage.removeItem(CRED); } catch (_) {} sb.auth.signOut(); };
+  $('clOut').onclick = () => { manualOut = true; store.removeItem(CRED); sb.auth.signOut(); };
 
   // --- Prix et articles : app -> Supabase (après chaque sauvegarde locale) ---
   async function syncMenu(force) {
