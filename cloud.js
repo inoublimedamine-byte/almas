@@ -152,6 +152,7 @@
         let t = db.tables.find(x => x.id === o.table_no);
         if (!t && o.table_no >= 100) { t = { id: o.table_no, items: [], takeaway: true }; db.tables.push(t); } // ticket à emporter
         if (!t) { toast('طاولة ' + o.table_no + ' موش موجودة في التطبيق'); continue; }
+        if (!t.items.length) t.since = Date.now();
         o.order_lines.forEach(l => {
           const pid = (l.menu_items && l.menu_items.local_id) || null, price = l.price_millimes / 1000;
           const e = pid && t.items.find(c => c.pid === pid && c.price === price);
@@ -241,6 +242,72 @@
     };
     loop();
   }
+
+  // --- Serveurs : fiches (nom, code, téléphone, email), WhatsApp, rappel > 1 h ---
+  const LIMIT = 60 * 60 * 1000;
+  let staff = [];
+  const alerted = new Set();
+  const waLink = (ph, msg) => { let d = String(ph || '').replace(/\D/g, ''); if (d.length === 8) d = '216' + d; return d ? 'https://wa.me/' + d + '?text=' + encodeURIComponent(msg) : ''; };
+  if (sec) sec.insertAdjacentHTML('beforeend',
+    '<div class="panel hide" id="stP"><strong>👥 السيرفورات</strong><div id="stList" style="margin:6px 0"></div>' +
+    '<button class="btn gold" id="stAdd">➕ زيد سيرفور</button><button class="btn light" id="stChk">⏰ كوموندات/طواول فوق الساعة</button></div>');
+  async function loadStaff() {
+    const r = await sb.from('staff').select('id,name,phone,email').eq('active', true).order('name');
+    staff = r.data || [];
+    $('stList').innerHTML = staff.length ? staff.map(s => '<div class="row"><div class="grow"><strong>' + safe(s.name) + '</strong><small>' + safe([s.phone, s.email].filter(Boolean).join(' · ') || 'بلا رقم') + '</small></div>' +
+      '<button class="btn light" style="width:auto;margin:0" data-wa="' + s.id + '">💬</button><button class="btn light" style="width:auto;margin:0 0 0 6px;color:var(--red)" data-del="' + s.id + '">🗑️</button></div>').join('') : '<div class="mini">ما فما حتى سيرفور</div>';
+    $('stList').querySelectorAll('[data-wa]').forEach(b => b.onclick = () => {
+      const s = staff.find(x => x.id === b.dataset.wa), l = waLink(s && s.phone, 'السلام ' + s.name);
+      l ? window.open(l, '_blank') : toast('ما عندوش رقم تلفون');
+    });
+    $('stList').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      const s = staff.find(x => x.id === b.dataset.del);
+      if (!(await askConfirm('نحّي السيرفور', s.name + ' ما يعاودش يدخل للتطبيق. متأكد؟', 'نحّي'))) return;
+      const u = await sb.from('staff').update({ active: false }).eq('id', s.id);
+      toast(u.error ? 'ما تنحاش. عاود جرّب' : 'تنحّى ' + s.name); loadStaff();
+    });
+  }
+  sb.auth.onAuthStateChange((_e, s) => { $('stP').classList.toggle('hide', !(s && s.user)); if (s && s.user) loadStaff(); });
+  sb.auth.getSession().then(r => { const u = r.data.session && r.data.session.user; $('stP').classList.toggle('hide', !u); if (u) loadStaff(); });
+  $('stAdd').onclick = async () => {
+    let f = {};
+    const r = await dlg({
+      title: '➕ سيرفور جديد', msg: 'الإسم والكود باش يدخل بيهم للتطبيق',
+      html: '<input class="field" id="sN" placeholder="الإسم"><input class="field" id="sC" inputmode="numeric" placeholder="الكود السري (4 أرقام على الأقل)"><input class="field" id="sT" type="tel" placeholder="رقم التلفون (WhatsApp)"><input class="field" id="sE" type="email" placeholder="Email (اختياري)">',
+      buttons: [{ t: 'تسجيل', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }],
+      onMount: w => { f = { n: w.querySelector('#sN'), c: w.querySelector('#sC'), t: w.querySelector('#sT'), e: w.querySelector('#sE') }; }
+    });
+    if (!r || r.v !== 'ok') return;
+    const name = f.n.value.trim(), pin = f.c.value.trim();
+    if (!name || pin.length < 4) return toast('الإسم والكود (4 على الأقل) مطلوبين');
+    const x = await sb.rpc('add_staff', { p_name: name, p_pin: pin, p_phone: f.t.value.trim() || null, p_email: f.e.value.trim() || null });
+    if (x.error) return toast(/duplicate|unique/i.test(x.error.message) ? 'الإسم موجود من قبل' : 'ما تسجّلش. تأكد أنك دخلت ملفات SQL');
+    toast('تسجّل ' + name); loadStaff();
+  };
+  async function overdue() {
+    const now = Date.now(), out = [];
+    db.tables.forEach(t => { if (t.items && t.items.length && t.since && now - t.since > LIMIT) out.push({ k: 't' + t.id, txt: tl(t.id) + ' — ' + Math.floor((now - t.since) / 6e4) + ' دق' }); });
+    if (user) {
+      const r = await sb.from('staff_orders').select('id,table_label,created_at,staff_id').eq('status', 'open').lt('created_at', new Date(now - LIMIT).toISOString());
+      if (!staff.length) await loadStaff();
+      (r.data || []).forEach(o => {
+        const s = staff.find(x => x.id === o.staff_id) || {}, m = Math.floor((now - new Date(o.created_at)) / 6e4);
+        out.push({ k: 'o' + o.id, txt: (s.name || '?') + ' · ' + o.table_label + ' — ' + m + ' دق', wa: waLink(s.phone, 'السلام ' + (s.name || '') + '، ' + o.table_label + ' محلولة من ' + m + ' دقيقة. تأكد من الخلاص أو الحساب.') });
+      });
+    }
+    return out;
+  }
+  $('stChk').onclick = async () => {
+    const out = await overdue();
+    if (!out.length) return toast('ما فما حتى حاجة فوق الساعة ✅');
+    const d = await dlg({ title: '⏰ فوق الساعة', msg: 'اضغط على سيرفور باش تبعثلو تذكير WhatsApp', buttons: out.map((x, i) => ({ t: (x.wa ? '💬 ' : '') + x.txt, v: i })).concat([{ t: 'سكّر', v: null }]) });
+    if (d && d.v != null && out[d.v].wa) window.open(out[d.v].wa, '_blank');
+  };
+  setInterval(async () => {
+    const out = await overdue(), fresh = out.filter(x => !alerted.has(x.k));
+    if (fresh.length) { fresh.forEach(x => alerted.add(x.k)); beep(); toast('⏰ ' + fresh.length + ' فوق الساعة: ' + fresh[0].txt); }
+  }, 5 * 60 * 1000);
+
   $('clO').onclick = showPending;
   $('clS').onclick = scan;
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshPending(); });
