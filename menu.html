@@ -81,11 +81,27 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
 html[dir=ltr] .cartbox{text-align:left}
 html[dir=ltr] .cl .p{text-align:right}
 </style>
-<style>html,body{overscroll-behavior-y:none}</style></head>
+<style>html,body{overscroll-behavior-y:none}
+/* ===== Fidélité : compte client + fiche 10 cases ===== */
+.field{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;font:inherit;background:#fff;margin:5px 0}
+.auth .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 6px}
+.auth .tabs button{min-height:46px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-weight:800;color:var(--brown)}
+.auth .tabs button.on{background:var(--dark);color:#ffe5b7;border-color:var(--dark)}
+.auth .btn{margin-top:8px}
+.auth label.ok{display:flex;gap:8px;align-items:flex-start;text-align:start;margin:8px 0;font-size:14px;color:var(--muted)}
+.auth label.ok input{width:22px;height:22px;flex:none}
+.lcard{text-align:start;border-color:var(--gold);margin:12px 0;padding:12px}
+.lcard .lhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lcard .lhead a{color:var(--brown);font-weight:700}
+.stamps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:10px 0}
+.stamps span{aspect-ratio:1/1;border:2px dashed var(--gold);border-radius:50%;display:grid;place-items:center;font-weight:800;color:var(--muted)}
+.stamps span.on{background:var(--green);border:2px solid var(--green);color:#fff;font-size:20px}
+</style></head>
 <body>
 <header><h1>ALMAS</h1><p id="hd">المنيو</p><button type="button" id="lang">FR</button></header>
 <main>
   <section id="vMenu">
+    <div id="lcM"></div>
     <div class="box cartbox hide" id="cartBox"></div>
     <div class="cats" id="cats"></div>
     <div class="hint" id="hint">👆 إنزل على التصويرة باش تزيد للكوموند</div>
@@ -94,7 +110,33 @@ html[dir=ltr] .cl .p{text-align:right}
     <div class="err" id="err"></div>
     <button class="btn light hide" id="bBack" style="margin-top:8px">رجوع للكوموندات</button>
   </section>
+  <section id="vAuth" class="hide auth">
+    <div class="box" style="text-align:start">
+      <div class="st" id="auTitle">🎁</div>
+      <div class="mute" id="auSub"></div>
+      <div class="tabs"><button type="button" id="auTL" class="on"></button><button type="button" id="auTR"></button></div>
+      <div id="auLogin">
+        <input class="field" id="alP" type="tel" inputmode="numeric" autocomplete="username">
+        <input class="field" id="alW" type="password" autocomplete="current-password">
+        <button type="button" class="btn gold" id="auLoginGo"></button>
+      </div>
+      <div id="auReg" class="hide">
+        <input class="field" id="arF" autocomplete="given-name" maxlength="40">
+        <input class="field" id="arL" autocomplete="family-name" maxlength="40">
+        <input class="field" id="arP" type="tel" inputmode="numeric" autocomplete="tel">
+        <input class="field" id="arC" type="tel" inputmode="numeric" maxlength="8">
+        <label class="mute" for="arD" id="arDl" style="display:block;margin-top:6px"></label>
+        <input class="field" id="arD" type="date">
+        <input class="field" id="arW" type="password" autocomplete="new-password">
+        <input class="field" id="arW2" type="password" autocomplete="new-password">
+        <label class="ok"><input type="checkbox" id="arOk"><span id="arOkT"></span></label>
+        <button type="button" class="btn gold" id="auRegGo"></button>
+      </div>
+      <div class="err" id="auErr"></div>
+    </div>
+  </section>
   <section id="vOrder" class="hide">
+    <div id="lcO"></div>
     <div class="box"><div class="mute" id="oTable"></div><div class="st" id="oStatus">…</div></div>
     <div id="oLines"></div>
     <div class="tot"><span id="oTotLbl">المجموع</span><span id="oTotal"></span></div>
@@ -126,7 +168,11 @@ const money = n => (n / 1000).toFixed(3) + t('cur');
 // ===== Langue : عربي / Français =====
 const CAT_AR = {'Boisson chaude': 'مشروبات سخونة', 'Boisson froide': 'مشروبات باردة', 'Petit dej': 'فطور'};
 const L = {
-  ar: {menu:'المنيو', scan:'امسح الـQR الموجود على الطاولة', hint:'👆 إنزل على التصويرة باش تزيد للكوموند', note:'ملاحظة (اختياري)، مثلا: بلا سكر',
+  ar: {loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ',
+    auSub:'باش تطلب، ادخل لحسابك ولا اعمل حساب جديد', auHave:'عندي حساب', auNew:'حساب جديد', fPhone:'رقم التلفون (8 أرقام)', fPass:'كلمة السر', fPass2:'أعد كلمة السر',
+    fFirst:'الإسم', fLast:'اللقب', fCin:'رقم بطاقة التعريف (8 أرقام)', fDob:'تاريخ الولادة', consent:'نوافق على استعمال معلوماتي لبرنامج الوفاء فقط', auLogin:'دخول', auCreate:'تسجيل',
+    badLogin:'الرقم أو كلمة السر غالطة', locked:'برشة محاولات. عاود بعد 5 دقايق', phoneUsed:'هذا الرقم عندو حساب. ادخل بيه.', badData:'تأكد من المعلومات اللي كتبتها', passDiff:'كلمتين السر موش كيف كيف', needConsent:'لازم توافق باش تعمل الحساب',
+    menu:'المنيو', scan:'امسح الـQR الموجود على الطاولة', hint:'👆 إنزل على التصويرة باش تزيد للكوموند', note:'ملاحظة (اختياري)، مثلا: بلا سكر',
     send:'ابعث الكوموند', back:'رجوع للكوموندات', yourOrder:'🧾 كوموندك', total:'المجموع', bill:'اطلب الحساب', addOrder:'زيد كوموند',
     billReady:'الحساب جاهز', showCode:'وري هالكود للنادل باش يخلّص', wa:'ابعث الحساب في واتساب', newOrder:'كوموند جديدة', newOrder2:'حريف آخر؟ كوموند جديدة',
     table:'طاولة ', take:'🥡 للخارج', num:' · رقم ', orderN:'كوموند ', tableOrders:'كوموندات الطاولة',
@@ -134,7 +180,11 @@ const L = {
     tooMany:'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.', sendFail:'ما تبعثتش الكوموند. عاود جرّب.', billFail:'ما تبعثش الطلب. عاود جرّب.',
     menuFail:'المنيو ما تحمّلش. عاود جرّب.', menuFail2:'المنيو ما تحمّلش. حدّث الصفحة.', confirmNew:'تخلّي هالكوموند وتبدا وحدة جديدة؟', cur:' د.ت', other:'FR',
     st:{nouvelle:'الكوموند وصلت، في الانتظار', acceptee:'قيد التحضير', servie:'تخدمت، بالصحة', payee:'خالصة، يعيشك', annulee:'الكوموند تلغات'}},
-  fr: {menu:'Menu', scan:'Scannez le QR code sur la table', hint:'👆 Touchez la photo pour ajouter à la commande', note:'Remarque (facultatif), ex. sans sucre',
+  fr: {loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ',
+    auSub:'Pour commander, connectez-vous ou créez un compte', auHave:"J'ai un compte", auNew:'Créer un compte', fPhone:'Téléphone (8 chiffres)', fPass:'Mot de passe', fPass2:'Répétez le mot de passe',
+    fFirst:'Prénom', fLast:'Nom', fCin:'N° de CIN (8 chiffres)', fDob:'Date de naissance', consent:"J'accepte que mes informations servent uniquement au programme de fidélité", auLogin:'Se connecter', auCreate:'Créer mon compte',
+    badLogin:'Téléphone ou mot de passe incorrect', locked:'Trop de tentatives. Réessayez dans 5 minutes', phoneUsed:'Ce numéro a déjà un compte. Connectez-vous.', badData:'Vérifiez les informations saisies', passDiff:'Les mots de passe ne correspondent pas', needConsent:'Vous devez accepter pour créer un compte',
+    menu:'Menu', scan:'Scannez le QR code sur la table', hint:'👆 Touchez la photo pour ajouter à la commande', note:'Remarque (facultatif), ex. sans sucre',
     send:'Envoyer la commande', back:'Retour aux commandes', yourOrder:'🧾 Votre commande', total:'Total', bill:"Demander l'addition", addOrder:'Ajouter une commande',
     billReady:"L'addition est prête", showCode:'Montrez ce code au serveur pour payer', wa:"Envoyer l'addition sur WhatsApp", newOrder:'Nouvelle commande', newOrder2:'Autre client ? Nouvelle commande',
     table:'Table ', take:'🥡 À emporter', num:' · N° ', orderN:'Commande ', tableOrders:'Commandes de la table',
@@ -170,6 +220,90 @@ async function api(path, opt) {
   return r.status === 204 ? null : r.json().catch(() => null);
 }
 const rpc = (fn, body) => api('rpc/' + fn, {method: 'POST', body: JSON.stringify(body)});
+
+// ===== Fidélité : compte client (téléphone + mot de passe) + fiche de 10 cases =====
+const CK = 'almas_cust';
+let cust = null, auTab = 'login', lastPaid = 0;
+const getTok = () => { try { return localStorage.getItem(CK) || ''; } catch (_) { return ''; } };
+const setTok = v => { try { v ? localStorage.setItem(CK, v) : localStorage.removeItem(CK); } catch (_) {} };
+const digits8 = s => String(s || '').replace(/\D/g, '').slice(-8);
+async function loadMe() {
+  const tk = getTok(); if (!tk) { cust = null; return null; }
+  try { cust = {token: tk, me: await rpc('customer_me', {p_token: tk})}; }
+  catch (e) { if (/session_invalide/.test(e.message)) { setTok(''); cust = null; } else cust = {token: tk, me: cust && cust.me || null}; }   // réseau coupé : on garde la session
+  return cust && cust.me;
+}
+function paintCard() {
+  const me = cust && cust.me;
+  let h = '';
+  if (me) {
+    const n = Math.min(10, Number(me.stamps) || 0), last = (me.cards || [])[0];
+    h = `<div class="box lcard"><div class="lhead"><b>🎁 ${t('loyalTitle')}</b><span class="mute">${t('hello')}${safe(me.first)} · <a href="#" data-lo>${t('logout')}</a></span></div>
+      <div class="stamps">${Array.from({length: 10}, (_, i) => `<span class="${i < n ? 'on' : ''}">${i < n ? '✓' : i + 1}</span>`).join('')}</div>
+      <div class="mute">${n}/10 · ${t('loyalInfo')}</div>${last ? `<div class="mute" style="margin-top:6px">${t('lastReward')}<b>${money(last.reward)}</b></div>` : ''}</div>`;
+  }
+  ['lcM', 'lcO'].forEach(id => { const e = $(id); if (e) e.innerHTML = h; });
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest('[data-lo]')) return;
+  e.preventDefault();
+  const tk = getTok(); try { if (tk) await rpc('customer_logout', {p_token: tk}); } catch (_) {}
+  setTok(''); cust = null; location.reload();
+});
+function paintAuth() {
+  $('auTitle').textContent = '🎁 ' + t('loyalTitle'); $('auSub').textContent = t('auSub');
+  $('auTL').textContent = t('auHave'); $('auTR').textContent = t('auNew');
+  $('auTL').classList.toggle('on', auTab === 'login'); $('auTR').classList.toggle('on', auTab === 'reg');
+  $('auLogin').classList.toggle('hide', auTab !== 'login'); $('auReg').classList.toggle('hide', auTab !== 'reg');
+  $('alP').placeholder = t('fPhone'); $('alW').placeholder = t('fPass'); $('auLoginGo').textContent = t('auLogin');
+  $('arF').placeholder = t('fFirst'); $('arL').placeholder = t('fLast'); $('arP').placeholder = t('fPhone'); $('arC').placeholder = t('fCin');
+  $('arDl').textContent = t('fDob'); $('arW').placeholder = t('fPass'); $('arW2').placeholder = t('fPass2'); $('arOkT').textContent = t('consent'); $('auRegGo').textContent = t('auCreate');
+  $('auErr').textContent = '';
+}
+function showAuth() {
+  clearInterval(timer);
+  $('vMenu').classList.add('hide'); $('vOrder').classList.add('hide'); $('bar').classList.add('hide'); $('vAuth').classList.remove('hide');
+  paintAuth();
+}
+async function authDone(tok) { setTok(tok); await loadMe(); $('vAuth').classList.add('hide'); openMenu(); }
+$('auTL').onclick = () => { auTab = 'login'; paintAuth(); };
+$('auTR').onclick = () => { auTab = 'reg'; paintAuth(); };
+$('auLoginGo').onclick = async () => {
+  const er = $('auErr'), ph = digits8($('alP').value), pw = $('alW').value; er.textContent = '';
+  if (ph.length !== 8 || !pw) return er.textContent = t('badLogin');
+  $('auLoginGo').disabled = true;
+  try {
+    const r = await rpc('customer_login', {p_phone: ph, p_pass: pw});
+    if (r && r.ok) { $('alW').value = ''; await authDone(r.token); return; }
+    er.textContent = r && r.err === 'locked' ? t('locked') : t('badLogin');
+  } catch (e) { er.textContent = t('sendFail'); }
+  finally { $('auLoginGo').disabled = false; }
+};
+$('auRegGo').onclick = async () => {
+  const er = $('auErr'), f = $('arF').value.trim(), l = $('arL').value.trim(), ph = digits8($('arP').value),
+    cin = $('arC').value.replace(/\D/g, ''), dob = $('arD').value, pw = $('arW').value; er.textContent = '';
+  if (f.length < 2 || l.length < 2 || ph.length !== 8 || cin.length !== 8 || !dob || pw.length < 4) return er.textContent = t('badData');
+  if (pw !== $('arW2').value) return er.textContent = t('passDiff');
+  if (!$('arOk').checked) return er.textContent = t('needConsent');
+  $('auRegGo').disabled = true;
+  try {
+    const r = await rpc('customer_register', {p_first: f, p_last: l, p_phone: ph, p_cin: cin, p_dob: dob, p_pass: pw});
+    if (r && r.ok) { $('arW').value = ''; $('arW2').value = ''; await authDone(r.token); return; }
+    er.textContent = t('badData');
+  } catch (e) {
+    er.textContent = /telephone_existe|duplicate|unique/i.test(e.message) ? t('phoneUsed') : /donnees_invalides/.test(e.message) ? t('badData') : t('sendFail');
+  } finally { $('auRegGo').disabled = false; }
+};
+// rattache chaque commande au client connecté (la case se coche côté serveur quand la table est payée)
+async function linkOrders() {
+  const tk = getTok(); if (!tk) return;
+  for (const o of orders) {
+    if (o.linked || o.status === 'annulee') continue;
+    try { await rpc('customer_link_order', {p_token: tk, p_order: o.id}); o.linked = true; }
+    catch (e) { if (/session_invalide/.test(e.message)) break; }
+  }
+  saveOrders();
+}
 const saveOrders = () => { try { orders.length ? localStorage.setItem(LS, JSON.stringify(orders)) : localStorage.removeItem(LS); } catch (_) {} };
 const loadOrders = () => { try { const v = JSON.parse(localStorage.getItem(LS)); return Array.isArray(v) ? v : (v ? [v] : []); } catch (_) { return []; } };
 
@@ -227,7 +361,7 @@ $('bSend').onclick = async () => {
     });
     if (takeaway) { tableNo = res[0].o_table; try { localStorage.setItem(TK, tableNo); } catch (_) {} }
     orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false, t: Date.now()});
-    saveOrders(); cart = {}; $('note').value = '';
+    saveOrders(); cart = {}; $('note').value = ''; linkOrders();
     showOrder();
   } catch (e) {
     $('err').textContent = /cle_invalide/.test(e.message)
@@ -242,7 +376,7 @@ $('bSend').onclick = async () => {
 function showOrder() {
   $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); $('vOrder').classList.remove('hide');
   $('oTable').textContent = tableLabel();
-  paint(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
+  paint(); paintCard(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
 }
 
 function paint() {
@@ -289,7 +423,12 @@ async function syncStatuses() {
   }));
   saveOrders();
 }
-async function poll() { await syncStatuses(); paint(); }
+async function poll() {
+  await linkOrders(); await syncStatuses();
+  const paid = orders.filter(o => o.status === 'payee').length;
+  if (paid !== lastPaid) { lastPaid = paid; await loadMe(); paintCard(); }   // une commande vient d'être payée : la case est cochée
+  paint();
+}
 
 $('bBill').onclick = async () => {
   $('err2').textContent = '';
@@ -300,6 +439,8 @@ $('bBill').onclick = async () => {
 $('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.status !== 'annulee') && !confirm(t('confirmNew'))) return; orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem(TK); } catch (_) {} } location.reload(); };
 
 async function openMenu() {
+  if (!cust) await loadMe();
+  if (!getTok()) { showAuth(); return; }                // pas de compte : on demande de se connecter ou de créer un compte
   if (!items.length) {
     try {
       try { try { items = await api('menu_items?select=id,name,name_fr,price_millimes,category,image_url,description&available=eq.true&order=sort'); } catch (_0) { items = await api('menu_items?select=id,name,price_millimes,category,image_url,description&available=eq.true&order=sort'); } }
@@ -313,6 +454,7 @@ async function openMenu() {
   clearInterval(timer);
   $('vOrder').classList.add('hide'); $('vMenu').classList.remove('hide'); $('bar').classList.remove('hide');
   $('bBack').classList.toggle('hide', !orders.length);
+  paintCard();
   renderMenu();
 }
 $('bAdd').onclick = openMenu;
@@ -323,6 +465,7 @@ function applyLang() {
   document.documentElement.lang = lang; document.documentElement.dir = lang === 'fr' ? 'ltr' : 'rtl';
   $('lang').textContent = t('other'); $('hint').textContent = t('hint'); $('note').placeholder = t('note');
   $('bBack').textContent = t('back'); $('bAdd').textContent = t('addOrder'); $('bBill').textContent = t('bill');
+  paintCard(); if (!$('vAuth').classList.contains('hide')) paintAuth();
   $('oTotLbl').textContent = t('total'); $('bbTitle').textContent = t('billReady'); $('bbHint').textContent = t('showCode'); $('wa').textContent = t('wa');
   if (scanMode) $('hd').textContent = t('scan'); else if (takeaway || tableNo) $('hd').textContent = tableLabel(); else $('hd').textContent = t('menu');
   if (!$('vMenu').classList.contains('hide') && items.length) renderMenu(); else refresh();
@@ -343,6 +486,7 @@ $('lang').onclick = () => { lang = lang === 'fr' ? 'ar' : 'fr'; try { localStora
     if (takeaway) { tableNo = 0; try { localStorage.removeItem(TK); } catch (_) {} }
   }
   $('hd').textContent = tableLabel();
+  if (getTok()) await loadMe();
   if (orders.length) showOrder(); else openMenu();
 })();
 </script>

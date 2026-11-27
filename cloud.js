@@ -202,6 +202,10 @@
       if (p.eventType === 'INSERT') { beep(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
       else if (p.eventType === 'UPDATE' && n.bill_requested && !(p.old && p.old.bill_requested)) { beep(); toast('🧾 ' + tl(n.table_no) + ' تطلب الحساب'); }
       refreshPending();
+    }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'loyalty_cards' }, p => {
+      const n = p.new || {};
+      if (n.completed_at && !n.reward_sent) { beep(); toast('🎁 حريف كمّل 10 كوموندات — شوف الوفاء في الإعدادات'); }
+      if (typeof lyRefresh === 'function') lyRefresh();
     }).subscribe();
   }
   async function showPending() {
@@ -378,6 +382,50 @@
     const out = await overdue(), fresh = out.filter(x => !alerted.has(x.k));
     if (fresh.length) { fresh.forEach(x => alerted.add(x.k)); beep(); toast('⏰ ' + fresh.length + ' فوق الساعة: ' + fresh[0].txt); }
   }, 5 * 60 * 1000);
+
+  // --- Fidélité : 10 commandes payées = 5 % du total. Le client reçoit le message sur WhatsApp (tu appuies sur envoyer). ---
+  if (sec) sec.insertAdjacentHTML('beforeend',
+    '<div class="panel hide" id="lyP"><strong>🎁 الوفاء (Fidélité)</strong><div class="mini" id="lyInfo" style="margin:6px 0"></div>' +
+    '<button class="btn gold" id="lyRw">🎁 مكافآت تستنى</button><button class="btn light" id="lyCl">👥 الحرفاء المسجلين</button></div>');
+  const fmtM = m => money((Number(m) || 0) / 1000);
+  async function lyPending() {
+    const r = await sb.from('loyalty_cards')
+      .select('id,total_millimes,reward_millimes,completed_at,customers(first_name,last_name,phone)')
+      .not('completed_at', 'is', null).eq('reward_sent', false).order('completed_at');
+    return r.error ? null : r.data;
+  }
+  async function lyRefresh() {
+    if (!user || !$('lyInfo')) return;
+    const d = await lyPending();
+    $('lyInfo').textContent = d == null ? 'ما تحمّلتش. شغّل fidelite.sql في Supabase' : d.length ? '🎁 ' + d.length + ' مكافأة تستنى الإرسال' : 'ما فما حتى مكافأة تستنى ✅';
+    $('lyRw').textContent = '🎁 مكافآت تستنى' + (d && d.length ? ' (' + d.length + ')' : '');
+  }
+  const lyShow = u => { $('lyP').classList.toggle('hide', !u); if (u) lyRefresh(); };
+  sb.auth.onAuthStateChange((_e, s) => lyShow(s && s.user));
+  sb.auth.getSession().then(r => lyShow(r.data.session && r.data.session.user));
+  $('lyRw').onclick = async () => {
+    const d = await lyPending();
+    if (d == null) return toast('ما تحمّلتش. تأكد أنك شغّلت fidelite.sql');
+    if (!d.length) return toast('ما فما حتى مكافأة تستنى ✅');
+    const r = await dlg({ title: '🎁 مكافآت الوفاء', msg: 'اختار حريف باش تبعثلو رسالة WhatsApp', buttons: d.map((x, i) => ({ t: x.customers.first_name + ' ' + x.customers.last_name + ' — ' + fmtM(x.reward_millimes), cls: i ? '' : 'gold', v: i })).concat([{ t: 'سكّر', v: null }]) });
+    if (!r || r.v == null) return;
+    const x = d[r.v], c = x.customers;
+    const msg = 'مبروك ' + c.first_name + ' 🎉\nكمّلت 10 كوموندات في Almas وربحت ' + fmtM(x.reward_millimes) + ' (5% من ' + fmtM(x.total_millimes) + ').\nتنجم تستعملها في زيارتك الجاية. وتحلّتلك بطاقة جديدة 🎁';
+    const l = waLink(c.phone, msg);
+    if (!l) return toast('ما عندوش رقم تلفون');
+    window.open(l, '_blank');
+    if (await askConfirm('المكافأة', 'تبعثت الرسالة لـ ' + c.first_name + '؟ نسجّلها كمبعوثة.', 'إيه، تبعثت')) {
+      const u = await sb.from('loyalty_cards').update({ reward_sent: true, reward_sent_at: new Date().toISOString() }).eq('id', x.id);
+      toast(u.error ? 'ما تسجّلتش. عاود جرّب' : 'تسجّلت ✅'); lyRefresh();
+    }
+  };
+  $('lyCl').onclick = async () => {
+    const r = await sb.from('customers').select('id,first_name,last_name,phone', { count: 'exact' }).order('created_at', { ascending: false }).limit(60);
+    if (r.error) return toast('ما تحمّلتش. تأكد أنك شغّلت fidelite.sql');
+    if (!r.data.length) return toast('ما فما حتى حريف مسجّل بعد');
+    const d = await dlg({ title: '👥 الحرفاء (' + (r.count || r.data.length) + ')', msg: 'اضغط على حريف باش تبعثلو WhatsApp', buttons: r.data.map((x, i) => ({ t: x.first_name + ' ' + x.last_name + ' · ' + x.phone, v: i })).concat([{ t: 'سكّر', v: null }]) });
+    if (d && d.v != null) { const x = r.data[d.v], l = waLink(x.phone, 'السلام ' + x.first_name); l && window.open(l, '_blank'); }
+  };
 
   $('clO').onclick = showPending;
   $('clS').onclick = scan;
