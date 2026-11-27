@@ -173,7 +173,7 @@ $('bSend').onclick = async () => {
       p_note: ((takeaway ? '🥡 EMPORTER ' : '') + $('note').value.trim()).trim() || null
     });
     if (takeaway) { tableNo = res[0].o_table; try { localStorage.setItem(TK, tableNo); } catch (_) {} }
-    orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false});
+    orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false, t: Date.now()});
     saveOrders(); cart = {}; $('note').value = '';
     showOrder();
   } catch (e) {
@@ -224,7 +224,7 @@ function drawBill(open) {
   $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
 }
 
-async function poll() {
+async function syncStatuses() {
   if (!orders.length) return;
   await Promise.all(orders.map(async o => {
     if (o.status === 'payee' || o.status === 'annulee') return;
@@ -234,8 +234,9 @@ async function poll() {
       o.status = r.s_status; o.total = r.s_total; o.bill = r.s_bill;
     } catch (_) {}
   }));
-  saveOrders(); paint();
+  saveOrders();
 }
+async function poll() { await syncStatuses(); paint(); }
 
 $('bBill').onclick = async () => {
   $('err2').textContent = '';
@@ -269,9 +270,11 @@ $('bBack').onclick = showOrder;
     $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }
-  orders = loadOrders();
-  if (takeaway && orders.every(o => o.status === 'payee' || o.status === 'annulee')) {   // ancien ticket fini : nouveau client
-    orders = []; saveOrders(); tableNo = 0; try { localStorage.removeItem(TK); } catch (_) {}
+  orders = loadOrders().filter(o => !o.t || Date.now() - o.t < 12 * 36e5);   // commandes de plus de 12 h : oubliées
+  if (orders.length) await syncStatuses();                                   // statut à jour avant d'afficher
+  if (orders.every(o => o.status === 'payee' || o.status === 'annulee')) {   // tout est payé : nouveau client
+    orders = []; saveOrders();
+    if (takeaway) { tableNo = 0; try { localStorage.removeItem(TK); } catch (_) {} }
   }
   $('hd').textContent = tableLabel();
   if (orders.length) showOrder(); else openMenu();
