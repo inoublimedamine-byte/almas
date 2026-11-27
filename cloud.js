@@ -66,7 +66,7 @@
     const rows = db.items.map((p, i) => ({
       local_id: p.id, name: p.name, category: p.category || 'Boisson chaude',
       price_millimes: Math.round(Number(p.price) * 1000) || 0,
-      available: p.available !== false, sort: i
+      available: p.available !== false, sort: Math.max(0, categories.indexOf(p.category || 'Boisson chaude')) * 1000 + i
     }));
     const sig = JSON.stringify(rows);
     if (!force && sig === lastSig) return;
