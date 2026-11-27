@@ -26,10 +26,11 @@
   };
 
   // --- Interface : boutons flottants + panneau de connexion dans Réglages ---
-  document.body.insertAdjacentHTML('beforeend',
-    '<div id="cl" class="hide" style="position:fixed;left:10px;bottom:78px;z-index:30;display:flex;gap:8px">' +
-    '<button id="clO" class="btn gold" style="width:auto;margin:0;padding:11px 14px">📲 <span id="clN">0</span></button>' +
-    '<button id="clS" class="btn light" style="width:auto;margin:0;padding:11px 14px" aria-label="مسح QR">📷</button></div>');
+  document.head.insertAdjacentHTML('beforeend', '<style>header .wrap{flex-wrap:wrap;row-gap:10px}header .hleft{width:100%;align-items:stretch}header .hact{width:100%}header .hact .hbtn{flex:1;min-width:0;min-height:64px;justify-content:center}header .hbtn i{font-size:24px}header .hbtn em{font-size:11px;white-space:nowrap}</style>');
+  document.querySelector('header .hact').insertAdjacentHTML('beforeend',
+    '<div id="cl" class="hide" style="display:contents">' +
+    '<button id="clO" class="hbtn"><i>📲</i><em>كوموند QR</em><b id="clN" class="cnt zero">0</b></button>' +
+    '<button id="clS" class="hbtn"><i>📷</i><em>مسح QR</em></button></div>');
   const sec = $('settings');
   if (sec) sec.insertAdjacentHTML('beforeend',
     '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0"></div>' +
@@ -122,6 +123,7 @@
     if (!user) return;
     const r = await sb.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'nouvelle');
     $('clN').textContent = r.count || 0;
+    $('clN').classList.toggle('zero', !r.count);
   }
   function listen() {
     if (ch) return;
