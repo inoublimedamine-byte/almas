@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#392518">
+<link rel="manifest" href="manifest-serveur.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Almas Serveur">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Almas — السيرفور</title>
+<style>
+:root{--dark:#392518;--brown:#604127;--gold:#d7ad70;--bg:#f5f0e8;--card:#fffdf9;--ink:#30251b;--muted:#8b7b68;--line:#e9dfd1;--green:#28784c;--red:#b9443b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+header{background:var(--dark);color:#ffe5b7;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;border-radius:0 0 20px 20px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:17px}header small{display:block;color:#ddc9ad;font-size:12px}
+main{max-width:640px;margin:auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
+.field{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;font:inherit;background:#fff;margin:5px 0}
+.btn{width:100%;min-height:50px;border:0;border-radius:13px;background:var(--dark);color:#ffe5b7;font:inherit;font-weight:800;margin-top:7px}
+.btn.gold{background:var(--gold);color:var(--dark)}.btn.light{background:#efe4d5;color:var(--dark)}.btn:disabled{opacity:.45}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.tabs button{min-height:46px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-weight:800;color:var(--brown)}
+.tabs button.on{background:var(--dark);color:#ffe5b7;border-color:var(--dark)}
+.tg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tg button{min-height:56px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-size:18px;font-weight:800}
+.tg button.on{background:var(--gold);border-color:var(--gold)}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 0}
+.cats button{min-height:46px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-size:13px;font-weight:700;color:var(--brown)}
+.cats button.on{background:var(--dark);color:#ffe5b7}
+.row{display:flex;align-items:center;gap:8px}.grow{flex:1;min-width:0}
+.q{display:flex;align-items:center;gap:6px}.q button{width:42px;height:42px;border:0;border-radius:11px;background:#efe5d7;font-size:21px;font-weight:800}
+.q button.a{background:var(--dark);color:#ffe5b7}
+.mute{color:var(--muted);font-size:12px}.red{color:var(--red)}.green{color:var(--green)}
+.tot{display:flex;justify-content:space-between;font-weight:800;font-size:17px;margin:10px 0 2px}
+.bar{position:fixed;inset:auto 0 0 0;background:#fff;border-top:1px solid var(--line);padding:9px 12px calc(9px + env(safe-area-inset-bottom))}
+.bar .in{max-width:640px;margin:auto}.bar .btn{margin:0}
+.hide{display:none!important}
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--dark);color:#ffe5b7;padding:11px 16px;border-radius:12px;z-index:9;font-weight:700}
+</style>
+</head>
+<body>
+<header><div><b>☕ Almas</b><small id="who">السيرفور</small></div><button id="out" class="hide" style="background:none;border:1px solid #ddc9ad;color:#ddc9ad;border-radius:10px;padding:7px 12px;font:inherit">خروج</button></header>
+<main>
+<div id="login" class="card">
+  <b>دخول السيرفور</b>
+  <input class="field" id="lN" placeholder="الإسم" autocomplete="username">
+  <input class="field" id="lC" type="password" inputmode="numeric" placeholder="الكود السري" autocomplete="current-password">
+  <button class="btn gold" id="lGo">دخول</button>
+</div>
+<div id="app" class="hide">
+  <div class="card row"><div class="grow"><b id="sumPaid">0.000 د.ت</b><div class="mute">المقبوض (آخر 24 ساعة)</div></div><div><b id="sumOpen">0</b><div class="mute">كوموندات مفتوحة</div></div></div>
+  <div class="tabs"><button id="tNew" class="on">كوموند جديدة</button><button id="tMine">كوموندات متاعي</button></div>
+  <section id="vNew">
+    <div class="mute">اختار الطاولة</div><div class="tg" id="tg"></div>
+    <div class="cats" id="cats"></div><div id="items"></div>
+    <div class="card" id="cartBox"><b>الكوموند</b><div id="cart"></div><div class="tot"><span>المجموع</span><span id="cartSum">0.000 د.ت</span></div></div>
+  </section>
+  <section id="vMine" class="hide"><div id="mine"></div></section>
+</div>
+</main>
+<div class="bar hide" id="bar"><div class="in"><button class="btn" id="send" disabled>ابعث الكوموند</button></div></div>
+<script>
+const SB_URL='https://rxgjfaolfznnvkqzounv.supabase.co';
+const SB_KEY='sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz'; // clé anon uniquement
+const TABLES=12, LIMIT=60*60*1000, LS='almas_staff';
+const $=id=>document.getElementById(id);
+const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>(n/1000).toFixed(3)+' د.ت';
+const H={apikey:SB_KEY,'Content-Type':'application/json'};
+if(SB_KEY.startsWith('eyJ'))H.Authorization='Bearer '+SB_KEY;
+const toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)};
+let me=null,menu=[],cat='',table=null,cart={},timer=null;
+
+async function rpc(fn,args){
+  const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:H,body:JSON.stringify(args)});
+  const j=await r.json().catch(()=>null);
+  if(!r.ok)throw new Error((j&&j.message)||'خطأ');
+  return j;
+}
+async function login(name,pin,silent){
+  try{
+    await rpc('staff_my_orders',{p_name:name,p_pin:pin});
+    me={name,pin};localStorage.setItem(LS,JSON.stringify(me));
+    $('login').classList.add('hide');$('app').classList.remove('hide');$('out').classList.remove('hide');$('bar').classList.remove('hide');
+    $('who').textContent=name;
+    await loadMenu();drawTables();refresh();
+    clearInterval(timer);timer=setInterval(refresh,60000);
+  }catch(e){if(!silent)toast('الإسم أو الكود غالط');}
+}
+$('lGo').onclick=()=>login($('lN').value.trim(),$('lC').value.trim());
+$('out').onclick=()=>{localStorage.removeItem(LS);location.reload()};
+
+async function loadMenu(){
+  const r=await fetch(SB_URL+'/rest/v1/menu_items?select=local_id,name,price_millimes,category&available=eq.true&order=sort',{headers:H});
+  menu=r.ok?await r.json():[];
+  const cs=[...new Set(menu.map(m=>m.category||'Boisson chaude'))];cat=cs[0]||'';
+  $('cats').innerHTML=cs.map(c=>`<button data-c="${safe(c)}" class="${c===cat?'on':''}">${safe(c)}</button>`).join('');
+  $('cats').querySelectorAll('button').forEach(b=>b.onclick=()=>{cat=b.dataset.c;$('cats').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));drawItems()});
+  drawItems();
+}
+function drawTables(){
+  $('tg').innerHTML=Array.from({length:TABLES},(_,i)=>`<button data-t="${i+1}" class="${table===i+1?'on':''}">${i+1}</button>`).join('');
+  $('tg').querySelectorAll('button').forEach(b=>b.onclick=()=>{table=Number(b.dataset.t);drawTables();upd()});
+}
+function drawItems(){
+  $('items').innerHTML=menu.filter(m=>(m.category||'Boisson chaude')===cat).map(m=>`<div class="card row"><div class="grow"><b>${safe(m.name)}</b><div class="mute green">${money(m.price_millimes)}</div></div><div class="q"><button data-m="${m.local_id}" data-d="-1">−</button><b>${cart[m.local_id]||0}</b><button class="a" data-m="${m.local_id}" data-d="1">+</button></div></div>`).join('');
+  $('items').querySelectorAll('button').forEach(b=>b.onclick=()=>{const id=b.dataset.m;cart[id]=Math.max(0,(cart[id]||0)+Number(b.dataset.d));if(!cart[id])delete cart[id];drawItems();upd()});
+}
+const lines=()=>Object.entries(cart).map(([id,q])=>{const m=menu.find(x=>String(x.local_id)===id);return m&&{pid:m.local_id,name:m.name,price:m.price_millimes/1000,q,mm:m.price_millimes*q}}).filter(Boolean);
+function upd(){
+  const L=lines(),tot=L.reduce((s,l)=>s+l.mm,0);
+  $('cart').innerHTML=L.length?L.map(l=>`<div class="row" style="padding:4px 0"><span class="grow">${l.q} × ${safe(l.name)}</span><span>${money(l.mm)}</span></div>`).join(''):'<div class="mute">فارغة</div>';
+  $('cartSum').textContent=money(tot);
+  $('send').disabled=!L.length||!table;
+  $('send').textContent=!table?'اختار طاولة':L.length?'ابعث الكوموند — طاولة '+table:'ابعث الكوموند';
+}
+$('send').onclick=async()=>{
+  const L=lines();if(!L.length||!table)return;
+  $('send').disabled=true;
+  try{
+    await rpc('staff_send_order',{p_name:me.name,p_pin:me.pin,p_table:'طاولة '+table,p_items:L.map(({pid,name,price,q})=>({pid,name,price,q})),p_total:L.reduce((s,l)=>s+l.mm,0)});
+    cart={};drawItems();upd();toast('تبعثت ✅');refresh();
+  }catch(e){toast('ما تبعثتش: '+e.message);upd()}
+};
+async function refresh(){
+  if(!me)return;
+  let rows;try{rows=await rpc('staff_my_orders',{p_name:me.name,p_pin:me.pin})}catch(e){return}
+  $('sumPaid').textContent=money(rows.reduce((s,o)=>s+o.paid_millimes,0));
+  const open=rows.filter(o=>o.status==='open');$('sumOpen').textContent=open.length;
+  $('mine').innerHTML=rows.length?rows.map(o=>{
+    const age=Math.floor((Date.now()-new Date(o.created_at))/6e4),late=o.status==='open'&&age*6e4>LIMIT,due=o.total_millimes-o.paid_millimes;
+    return `<div class="card"><div class="row"><b class="grow">${safe(o.table_label)}</b><span class="mute ${late?'red':''}">${o.status==='open'?(late?'⏰ ':'')+age+' دق':'خالصة ✅'}</span></div><div class="mute">${o.items.map(i=>safe(i.name)+' × '+i.q).join('، ')}</div><div class="tot"><span>${money(o.total_millimes)}</span><span>${due>0?'الباقي '+money(due):''}</span></div>${due>0?`<button class="btn gold" data-p="${o.id}" data-d="${due}">💰 خلّص</button>`:''}</div>`}).join(''):'<div class="card mute">ما عندك حتى كوموند</div>';
+  $('mine').querySelectorAll('[data-p]').forEach(b=>b.onclick=async()=>{
+    const due=Number(b.dataset.d),v=prompt('قداش خلّص الحريف؟ (المتبقي '+money(due)+')',(due/1000).toFixed(3));
+    if(v==null)return;const mm=Math.round(parseFloat(String(v).replace(',','.'))*1000);
+    if(!(mm>0))return toast('مبلغ غالط');
+    try{await rpc('staff_pay_order',{p_name:me.name,p_pin:me.pin,p_order:b.dataset.p,p_paid:Math.min(due,mm)+(rows.find(o=>o.id===b.dataset.p).paid_millimes)});toast('تسجّل الخلاص ✅');refresh()}catch(e){toast('ما تسجّلش')}
+  });
+}
+$('tNew').onclick=()=>{$('tNew').classList.add('on');$('tMine').classList.remove('on');$('vNew').classList.remove('hide');$('vMine').classList.add('hide');$('bar').classList.remove('hide')};
+$('tMine').onclick=()=>{$('tMine').classList.add('on');$('tNew').classList.remove('on');$('vMine').classList.remove('hide');$('vNew').classList.add('hide');$('bar').classList.add('hide');refresh()};
+try{const s=JSON.parse(localStorage.getItem(LS)||'null');if(s)login(s.name,s.pin,true)}catch(e){}
+upd();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
