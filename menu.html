@@ -10,7 +10,7 @@
 :root{--dark:#392518;--brown:#604127;--gold:#d7ad70;--bg:#f5f0e8;--card:#fffdf9;--ink:#30251b;--muted:#8b7b68;--line:#e9dfd1;--green:#28784c;--red:#b9443b}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
-header{background:var(--dark);padding:calc(16px + env(safe-area-inset-top)) 18px 18px;border-radius:0 0 22px 22px}
+header{position:relative;background:var(--dark);padding:calc(16px + env(safe-area-inset-top)) 18px 18px;border-radius:0 0 22px 22px}
 header h1{margin:0;font:400 26px Georgia,serif;letter-spacing:5px;color:var(--gold)}
 header p{margin:4px 0 0;color:#ddc9ad;font-size:14px}
 main{max-width:640px;margin:auto;padding:12px}
@@ -77,15 +77,18 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
 .cl .p{color:var(--muted);font-size:14px;min-width:70px;text-align:left}
 .cl button{width:36px;height:36px;border:0;border-radius:10px;background:#efe5d7;font-size:20px;font-weight:700;color:var(--red)}
 .cartbox .tot{margin:10px 0 0;font-size:17px}
+#lang{position:absolute;top:calc(14px + env(safe-area-inset-top));inset-inline-end:14px;min-height:38px;padding:0 14px;border:1px solid var(--gold);border-radius:12px;background:transparent;color:var(--gold);font:inherit;font-weight:800}
+html[dir=ltr] .cartbox{text-align:left}
+html[dir=ltr] .cl .p{text-align:right}
 </style>
 </head>
 <body>
-<header><h1>ALMAS</h1><p id="hd">المنيو</p></header>
+<header><h1>ALMAS</h1><p id="hd">المنيو</p><button type="button" id="lang">FR</button></header>
 <main>
   <section id="vMenu">
     <div class="box cartbox hide" id="cartBox"></div>
     <div class="cats" id="cats"></div>
-    <div class="hint">👆 إنزل على التصويرة باش تزيد للكوموند</div>
+    <div class="hint" id="hint">👆 إنزل على التصويرة باش تزيد للكوموند</div>
     <div id="list"></div>
     <textarea id="note" rows="2" maxlength="200" placeholder="ملاحظة (اختياري)، مثلا: بلا سكر"></textarea>
     <div class="err" id="err"></div>
@@ -94,13 +97,13 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
   <section id="vOrder" class="hide">
     <div class="box"><div class="mute" id="oTable"></div><div class="st" id="oStatus">…</div></div>
     <div id="oLines"></div>
-    <div class="tot"><span>المجموع</span><span id="oTotal"></span></div>
+    <div class="tot"><span id="oTotLbl">المجموع</span><span id="oTotal"></span></div>
     <div class="err" id="err2"></div>
     <button class="btn gold" id="bBill">اطلب الحساب</button>
     <button class="btn light hide" id="bAdd" style="margin-top:12px">زيد كوموند</button>
     <div id="billBox" class="box hide" style="margin-top:12px">
-      <div class="st">الحساب جاهز</div>
-      <div class="mute">وري هالكود للنادل باش يخلّص</div>
+      <div class="st" id="bbTitle">الحساب جاهز</div>
+      <div class="mute" id="bbHint">وري هالكود للنادل باش يخلّص</div>
       <div id="qr"></div>
       <a class="btn wa" id="wa" target="_blank" rel="noopener">ابعث الحساب في واتساب</a>
     </div>
@@ -118,7 +121,33 @@ const OWNER_WA = '21624888838';       // numéro WhatsApp du patron, sans + ni e
 
 const $ = id => document.getElementById(id);
 const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money = n => (n / 1000).toFixed(3) + ' د.ت';
+const money = n => (n / 1000).toFixed(3) + t('cur');
+
+// ===== Langue : عربي / Français =====
+const CAT_AR = {'Boisson chaude': 'مشروبات سخونة', 'Boisson froide': 'مشروبات باردة', 'Petit dej': 'فطور'};
+const L = {
+  ar: {menu:'المنيو', scan:'امسح الـQR الموجود على الطاولة', hint:'👆 إنزل على التصويرة باش تزيد للكوموند', note:'ملاحظة (اختياري)، مثلا: بلا سكر',
+    send:'ابعث الكوموند', back:'رجوع للكوموندات', yourOrder:'🧾 كوموندك', total:'المجموع', bill:'اطلب الحساب', addOrder:'زيد كوموند',
+    billReady:'الحساب جاهز', showCode:'وري هالكود للنادل باش يخلّص', wa:'ابعث الحساب في واتساب', newOrder:'كوموند جديدة', newOrder2:'حريف آخر؟ كوموند جديدة',
+    table:'طاولة ', take:'🥡 للخارج', num:' · رقم ', orderN:'كوموند ', tableOrders:'كوموندات الطاولة',
+    badKey:'الكود موش صالح. امسح الـQR الموجود على الطاولة.', tooManyTk:'فما برشة كوموندات للخارج في الانتظار. كلّم النادل.',
+    tooMany:'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.', sendFail:'ما تبعثتش الكوموند. عاود جرّب.', billFail:'ما تبعثش الطلب. عاود جرّب.',
+    menuFail:'المنيو ما تحمّلش. عاود جرّب.', menuFail2:'المنيو ما تحمّلش. حدّث الصفحة.', confirmNew:'تخلّي هالكوموند وتبدا وحدة جديدة؟', cur:' د.ت', other:'FR',
+    st:{nouvelle:'الكوموند وصلت، في الانتظار', acceptee:'قيد التحضير', servie:'تخدمت، بالصحة', payee:'خالصة، يعيشك', annulee:'الكوموند تلغات'}},
+  fr: {menu:'Menu', scan:'Scannez le QR code sur la table', hint:'👆 Touchez la photo pour ajouter à la commande', note:'Remarque (facultatif), ex. sans sucre',
+    send:'Envoyer la commande', back:'Retour aux commandes', yourOrder:'🧾 Votre commande', total:'Total', bill:"Demander l'addition", addOrder:'Ajouter une commande',
+    billReady:"L'addition est prête", showCode:'Montrez ce code au serveur pour payer', wa:"Envoyer l'addition sur WhatsApp", newOrder:'Nouvelle commande', newOrder2:'Autre client ? Nouvelle commande',
+    table:'Table ', take:'🥡 À emporter', num:' · N° ', orderN:'Commande ', tableOrders:'Commandes de la table',
+    badKey:"Code invalide. Scannez le QR code qui est sur la table.", tooManyTk:"Trop de commandes à emporter en attente. Voyez le serveur.",
+    tooMany:'Trop de commandes en attente sur cette table. Appelez le serveur.', sendFail:"La commande n'a pas été envoyée. Réessayez.", billFail:"La demande n'a pas été envoyée. Réessayez.",
+    menuFail:'Le menu ne se charge pas. Réessayez.', menuFail2:'Le menu ne se charge pas. Rechargez la page.', confirmNew:'Abandonner cette commande et en commencer une nouvelle ?', cur:' DT', other:'عربي',
+    st:{nouvelle:'Commande reçue, en attente', acceptee:'En préparation', servie:'Servie, bon appétit', payee:'Payée, merci', annulee:'Commande annulée'}}
+};
+let lang = 'ar'; try { lang = localStorage.getItem('almas_lang') === 'fr' ? 'fr' : 'ar'; } catch (_) {}
+const t = k => (L[lang] || L.ar)[k];
+const nm = i => (lang === 'fr' && i.name_fr) ? i.name_fr : i.name;
+const catName = c => lang === 'fr' ? c : (CAT_AR[c] || c);
+let scanMode = false;
 let tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
 const qs = new URLSearchParams(location.search);
 const qkey = qs.get('k') || '';                              // clé secrète du QR (vérifiée côté serveur)
@@ -127,17 +156,12 @@ const TK = 'almas_take_no';
 if (takeaway) {   // le numéro de ticket est attribué par le serveur à la 1re commande
   tableNo = 0; try { tableNo = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
 }
-const tableLabel = () => takeaway ? (tableNo ? '🥡 للخارج · رقم ' + tableNo : '🥡 للخارج') : 'طاولة ' + tableNo;
+const tableLabel = () => takeaway ? t('take') + (tableNo ? t('num') + tableNo : '') : t('table') + tableNo;
+const tableLabelAr = () => takeaway ? (tableNo ? '🥡 للخارج · رقم ' + tableNo : '🥡 للخارج') : 'طاولة ' + tableNo;   // message WhatsApp du patron : toujours en arabe
 const LS = takeaway ? 'almas_order_take' : 'almas_order_' + tableNo;
 const H = {apikey: SB_KEY, 'Content-Type': 'application/json'};
 if (SB_KEY.startsWith('eyJ')) H.Authorization = 'Bearer ' + SB_KEY; // ancienne clé JWT seulement
-const STATUS = {
-  nouvelle: 'الكوموند وصلت، في الانتظار',
-  acceptee: 'قيد التحضير',
-  servie: 'تخدمت، بالصحة',
-  payee: 'خالصة، يعيشك',
-  annulee: 'الكوموند تلغات'
-};
+const STATUS = new Proxy({}, {get: (_, k) => t('st')[k]});
 let items = [], cart = {}, cat = null, orders = [], timer = null;
 
 async function api(path, opt) {
@@ -156,11 +180,11 @@ function renderMenu() {
   if (!cat || !cats.includes(cat)) cat = cats[0];
   $('cats').innerHTML = cats.map(c => {
     const im = (items.find(i => i.category === c && i.image_url) || {}).image_url;
-    return `<button class="${c === cat ? 'on' : ''}" data-cat="${safe(c)}"><span class="ci">${im ? `<img src="${safe(im)}" alt="" onerror="this.parentNode.textContent='${emo(c)}'">` : emo(c)}</span>${safe(c)}</button>`;
+    return `<button class="${c === cat ? 'on' : ''}" data-cat="${safe(c)}"><span class="ci">${im ? `<img src="${safe(im)}" alt="" onerror="this.parentNode.textContent='${emo(c)}'">` : emo(c)}</span>${safe(catName(c))}</button>`;
   }).join('');
   $('list').innerHTML = items.filter(i => i.category === cat).map(i => `<button type="button" class="tile" data-id="${i.id}">
       <div class="ph">${i.image_url ? `<img loading="lazy" src="${safe(i.image_url)}" alt="${safe(i.name)}" onerror="this.parentNode.textContent='${emo(i.category)}'">` : emo(i.category)}<span class="bd hide"></span></div>
-      <b>${safe(i.name)}</b><small>${money(i.price_millimes)}</small></button>`).join('');
+      <b>${safe(nm(i))}</b><small>${money(i.price_millimes)}</small></button>`).join('');
   refresh();
 }
 function refresh() {
@@ -171,12 +195,12 @@ function refresh() {
   const sel = items.filter(i => cart[i.id]);
   const cb = $('cartBox');
   cb.classList.toggle('hide', !sel.length);
-  cb.innerHTML = sel.length ? '<h3>🧾 كوموندك</h3>' + sel.map(i => `<div class="cl"><span class="n">${safe(i.name)}</span><span class="q">× ${cart[i.id]}</span><span class="p">${money(i.price_millimes * cart[i.id])}</span><button type="button" data-dec="${i.id}" aria-label="نقص">−</button></div>`).join('')
-    + `<div class="tot"><span>المجموع</span><span>${money(sel.reduce((t, i) => t + i.price_millimes * cart[i.id], 0))}</span></div>` : '';
+  cb.innerHTML = sel.length ? '<h3>' + t('yourOrder') + '</h3>' + sel.map(i => `<div class="cl"><span class="n">${safe(nm(i))}</span><span class="q">× ${cart[i.id]}</span><span class="p">${money(i.price_millimes * cart[i.id])}</span><button type="button" data-dec="${i.id}" aria-label="نقص">−</button></div>`).join('')
+    + `<div class="tot"><span>${t('total')}</span><span>${money(sel.reduce((t, i) => t + i.price_millimes * cart[i.id], 0))}</span></div>` : '';
   const n = Object.values(cart).reduce((a, b) => a + b, 0);
   const tot = items.reduce((s, i) => s + (cart[i.id] || 0) * i.price_millimes, 0);
   $('bSend').disabled = !n;
-  $('bSend').textContent = n ? `ابعث الكوموند · ${n} · ${money(tot)}` : 'ابعث الكوموند';
+  $('bSend').textContent = n ? `${t('send')} · ${n} · ${money(tot)}` : t('send');
 }
 $('cats').onclick = e => { const b = e.target.closest('[data-cat]'); if (b) { cat = b.dataset.cat; renderMenu(); scrollTo(0, 0); } };
 $('list').onclick = e => {
@@ -193,7 +217,7 @@ $('cartBox').onclick = e => {
 $('bSend').onclick = async () => {
   $('err').textContent = '';
   $('bSend').disabled = true;
-  const lines = items.filter(i => cart[i.id]).map(i => ({name: i.name, price: i.price_millimes, qty: cart[i.id]}));
+  const lines = items.filter(i => cart[i.id]).map(i => ({name: i.name, nameFr: i.name_fr || '', price: i.price_millimes, qty: cart[i.id]}));
   try {
     const res = await rpc('place_order', {
       p_table: takeaway ? 0 : tableNo,
@@ -207,10 +231,10 @@ $('bSend').onclick = async () => {
     showOrder();
   } catch (e) {
     $('err').textContent = /cle_invalide/.test(e.message)
-      ? 'الكود موش صالح. امسح الـQR الموجود على الطاولة.'
+      ? t('badKey')
       : /trop_de_commandes/.test(e.message)
-        ? (takeaway ? 'فما برشة كوموندات للخارج في الانتظار. كلّم النادل.' : 'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.')
-        : 'ما تبعثتش الكوموند. عاود جرّب.';
+        ? (takeaway ? t('tooManyTk') : t('tooMany'))
+        : t('sendFail');
     renderMenu();
   }
 };
@@ -226,16 +250,16 @@ function paint() {
   const open = live.filter(o => o.status !== 'payee');
   const done = !open.length;
   const asked = open.length > 0 && open.every(o => o.bill);
-  $('oStatus').textContent = done ? (live.length ? STATUS.payee : STATUS.annulee) : (asked ? 'الحساب جاهز' : 'كوموندات الطاولة');
+  $('oStatus').textContent = done ? (live.length ? STATUS.payee : STATUS.annulee) : (asked ? t('billReady') : t('tableOrders'));
   $('oLines').innerHTML = orders.map((o, i) =>
-    `<div class="mute" style="margin:12px 4px 6px">كوموند ${i + 1} — ${safe(STATUS[o.status] || o.status)}</div>` +
-    o.lines.map(l => `<div class="line"${o.status === 'annulee' ? ' style="opacity:.45"' : ''}><div class="nm"><b>${safe(l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('')
+    `<div class="mute" style="margin:12px 4px 6px">${t('orderN')}${i + 1} — ${safe(STATUS[o.status] || o.status)}</div>` +
+    o.lines.map(l => `<div class="line"${o.status === 'annulee' ? ' style="opacity:.45"' : ''}><div class="nm"><b>${safe(lang === 'fr' && l.nameFr ? l.nameFr : l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('')
   ).join('');
   $('oTotal').textContent = money(live.reduce((s, o) => s + o.total, 0));
   $('bBill').classList.toggle('hide', done || asked);
   $('bAdd').classList.toggle('hide', done || asked);
   $('bNew').classList.toggle('hide', !(done || takeaway));
-  $('bNew').textContent = done ? 'كوموند جديدة' : 'حريف آخر؟ كوموند جديدة';
+  $('bNew').textContent = done ? t('newOrder') : t('newOrder2');
   $('billBox').classList.toggle('hide', done || !asked);
   if (!done && asked) drawBill(open);
   if (done) clearInterval(timer);
@@ -248,7 +272,7 @@ function drawBill(open) {
   catch (_) { $('qr').textContent = ids.join(' '); }
   const m = {};
   open.forEach(o => o.lines.forEach(l => { const k = l.name + '|' + l.price; m[k] = m[k] || {name: l.name, price: l.price, qty: 0}; m[k].qty += l.qty; }));
-  const msg = ['حساب — ' + tableLabel(), ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
+  const msg = ['حساب — ' + tableLabelAr(), ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
     'المجموع: ' + money(open.reduce((s, o) => s + o.total, 0)), 'كود: ' + ids.map(i => i.slice(0, 8)).join(' ')].join('\n');
   $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
 }
@@ -271,19 +295,19 @@ $('bBill').onclick = async () => {
   $('err2').textContent = '';
   const open = orders.filter(o => o.status !== 'annulee' && o.status !== 'payee');
   try { await Promise.all(open.map(o => rpc('request_bill', {p_id: o.id}))); open.forEach(o => o.bill = true); saveOrders(); paint(); }
-  catch (_) { $('err2').textContent = 'ما تبعثش الطلب. عاود جرّب.'; }
+  catch (_) { $('err2').textContent = t('billFail'); }
 };
-$('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.status !== 'annulee') && !confirm('تخلّي هالكوموند وتبدا وحدة جديدة؟')) return; orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem(TK); } catch (_) {} } location.reload(); };
+$('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.status !== 'annulee') && !confirm(t('confirmNew'))) return; orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem(TK); } catch (_) {} } location.reload(); };
 
 async function openMenu() {
   if (!items.length) {
     try {
-      try { items = await api('menu_items?select=id,name,price_millimes,category,image_url,description&available=eq.true&order=sort'); }
+      try { try { items = await api('menu_items?select=id,name,name_fr,price_millimes,category,image_url,description&available=eq.true&order=sort'); } catch (_0) { items = await api('menu_items?select=id,name,price_millimes,category,image_url,description&available=eq.true&order=sort'); } }
       catch (_) { items = await api('menu_items?select=id,name,price_millimes,category&available=eq.true&order=sort'); }  // colonnes photo/description pas encore créées
     }
     catch (_) {
-      if (orders.length) { $('err2').textContent = 'المنيو ما تحمّلش. عاود جرّب.'; return; }
-      $('list').innerHTML = '<div class="box">المنيو ما تحمّلش. حدّث الصفحة.</div>'; return;
+      if (orders.length) { $('err2').textContent = t('menuFail'); return; }
+      $('list').innerHTML = '<div class="box">' + t('menuFail2') + '</div>'; return;
     }
   }
   clearInterval(timer);
@@ -294,9 +318,22 @@ async function openMenu() {
 $('bAdd').onclick = openMenu;
 $('bBack').onclick = showOrder;
 
+
+function applyLang() {
+  document.documentElement.lang = lang; document.documentElement.dir = lang === 'fr' ? 'ltr' : 'rtl';
+  $('lang').textContent = t('other'); $('hint').textContent = t('hint'); $('note').placeholder = t('note');
+  $('bBack').textContent = t('back'); $('bAdd').textContent = t('addOrder'); $('bBill').textContent = t('bill');
+  $('oTotLbl').textContent = t('total'); $('bbTitle').textContent = t('billReady'); $('bbHint').textContent = t('showCode'); $('wa').textContent = t('wa');
+  if (scanMode) $('hd').textContent = t('scan'); else if (takeaway || tableNo) $('hd').textContent = tableLabel(); else $('hd').textContent = t('menu');
+  if (!$('vMenu').classList.contains('hide') && items.length) renderMenu(); else refresh();
+  if (!$('vOrder').classList.contains('hide')) { $('oTable').textContent = tableLabel(); paint(); }
+}
+$('lang').onclick = () => { lang = lang === 'fr' ? 'ar' : 'fr'; try { localStorage.setItem('almas_lang', lang); } catch (_) {} applyLang(); };
+
 (async function init() {
+  applyLang();
   if ((!takeaway && !tableNo) || (!qkey && !loadOrders().length)) {
-    $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
+    scanMode = true; $('hd').textContent = t('scan');
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }
   orders = loadOrders().filter(o => !o.t || Date.now() - o.t < 12 * 36e5);   // commandes de plus de 12 h : oubliées

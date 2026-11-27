@@ -68,13 +68,18 @@
       local_id: p.id, name: p.name, category: p.category || 'Boisson chaude',
       price_millimes: Math.round(Number(p.price) * 1000) || 0,
       image_url: p.img || null,
+      name_fr: (p.nameFr || '').trim() || null,
       available: p.available !== false, sort: Math.max(0, categories.indexOf(p.category || 'Boisson chaude')) * 1000 + i
     }));
     const sig = JSON.stringify(rows);
     if (!force && sig === lastSig) return;
     let up = await sb.from('menu_items').upsert(rows, { onConflict: 'local_id' });
-    if (up.error && /image_url/.test(up.error.message || '')) {   // colonne image_url pas encore créée : on synchronise sans photos
-      up = await sb.from('menu_items').upsert(rows.map(r => { const { image_url, ...x } = r; return x; }), { onConflict: 'local_id' });
+    const drop = [];   // colonnes pas encore créées (image_url, name_fr) : on synchronise sans elles
+    for (const col of ['name_fr', 'image_url']) {
+      if (up.error && new RegExp(col).test(up.error.message || '')) {
+        drop.push(col);
+        up = await sb.from('menu_items').upsert(rows.map(r => { const x = { ...r }; drop.forEach(d => delete x[d]); return x; }), { onConflict: 'local_id' });
+      }
     }
     if (up.error) return;
     await sb.from('menu_items').delete().not('local_id', 'in', '(' + rows.map(r => r.local_id).join(',') + ')');
