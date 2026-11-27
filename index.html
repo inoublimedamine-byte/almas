@@ -110,7 +110,7 @@ body.app-hidden header,body.app-hidden main,body.app-hidden .bottom{display:none
 <div id="printArea" class="rep"></div>
 <div id="sheetBack" class="sheetback" onclick="activeTable=null;renderTableDetail()"></div><div id="tableSheet" class="sheet"><div class="grab"></div><div id="tableDetail" class="sheet-body"></div></div>
 <script>
-const APP_VERSION='v11 · 2026-11-27';
+const APP_VERSION='v12 · 2026-11-27';
 function enterApp(){}
 function startPassenger(){document.getElementById("customer").value="Client passager";navigate("sell");}
 const photo=(id)=>`https://images.unsplash.com/${id}?auto=format&fit=crop&w=360&q=68`;
@@ -346,4 +346,7 @@ stockInit();
 renderAll();autoLogin();
 if(document.addEventListener)document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cur)backupNudge()});
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
-</script></body></html>
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="cloud.js"></script>
+</body></html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#392518">
+<title>Almas — المنيو</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--dark:#392518;--brown:#604127;--gold:#d7ad70;--bg:#f5f0e8;--card:#fffdf9;--ink:#30251b;--muted:#8b7b68;--line:#e9dfd1;--green:#28784c;--red:#b9443b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+header{background:var(--dark);padding:calc(16px + env(safe-area-inset-top)) 18px 18px;border-radius:0 0 22px 22px}
+header h1{margin:0;font:400 26px Georgia,serif;letter-spacing:5px;color:var(--gold)}
+header p{margin:4px 0 0;color:#ddc9ad;font-size:14px}
+main{max-width:640px;margin:auto;padding:12px}
+.cats{display:flex;gap:6px;overflow-x:auto;padding:8px 0 12px;position:sticky;top:0;background:var(--bg);z-index:5}
+.cats button{flex:0 0 auto;min-height:44px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:0 16px;font:inherit;font-weight:700;color:var(--brown)}
+.cats button.on{background:var(--dark);color:#ffe5b7;border-color:var(--dark)}
+.item,.line{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+.item .nm,.line .nm{flex:1;min-width:0}
+.item b,.line b{display:block;font-size:16px}
+.item small,.line small{color:var(--green);font-weight:700}
+.qty{display:flex;align-items:center;gap:4px}
+.qty button{width:44px;height:44px;border:0;border-radius:12px;background:#efe5d7;font-size:22px;font-weight:700;color:var(--dark)}
+.qty button.add{background:var(--dark);color:#ffe5b7}
+.qty span{min-width:26px;text-align:center;font-weight:800}
+textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;background:#fff;margin-top:6px}
+.bar{position:fixed;inset:auto 0 0 0;background:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+.bar .in{max-width:640px;margin:auto}
+.btn{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--dark);color:#ffe5b7;font:inherit;font-size:17px;font-weight:800}
+.btn:disabled{opacity:.45}
+.btn.gold{background:var(--gold);color:var(--dark)}
+.btn.wa{background:#25a15a;color:#fff;display:block;text-align:center;text-decoration:none;line-height:52px}
+.btn.light{background:#efe4d5;color:var(--dark)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px;text-align:center}
+.st{font-size:20px;font-weight:800;color:var(--dark);margin:6px 0}
+.tot{display:flex;justify-content:space-between;font-weight:800;font-size:18px;margin:12px 0 4px}
+.err{color:var(--red);font-weight:700;min-height:22px;margin:8px 0}
+#qr svg{width:220px;height:220px;display:block;margin:10px auto}
+.hide{display:none!important}
+.mute{color:var(--muted);font-size:13px}
+button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+</style>
+</head>
+<body>
+<header><h1>ALMAS</h1><p id="hd">المنيو</p></header>
+<main>
+  <section id="vMenu">
+    <div class="cats" id="cats"></div>
+    <div id="list"></div>
+    <textarea id="note" rows="2" maxlength="200" placeholder="ملاحظة (اختياري)، مثلا: بلا سكر"></textarea>
+    <div class="err" id="err"></div>
+  </section>
+  <section id="vOrder" class="hide">
+    <div class="box"><div class="mute" id="oTable"></div><div class="st" id="oStatus">…</div></div>
+    <div id="oLines"></div>
+    <div class="tot"><span>المجموع</span><span id="oTotal"></span></div>
+    <div class="err" id="err2"></div>
+    <button class="btn gold" id="bBill">اطلب الحساب</button>
+    <div id="billBox" class="box hide" style="margin-top:12px">
+      <div class="st">الحساب جاهز</div>
+      <div class="mute">وري هالكود للنادل باش يخلّص</div>
+      <div id="qr"></div>
+      <a class="btn wa" id="wa" target="_blank" rel="noopener">ابعث الحساب في واتساب</a>
+    </div>
+    <button class="btn light hide" id="bNew" style="margin-top:12px">كوموند جديدة</button>
+  </section>
+</main>
+<div class="bar" id="bar"><div class="in"><button class="btn" id="bSend" disabled>ابعث الكوموند</button></div></div>
+
+<script>
+// ===== À CONFIGURER =====
+const SB_URL = 'https://VOTRE-PROJET.supabase.co';
+const SB_KEY = 'VOTRE_CLE_ANON';      // clé "anon" uniquement, JAMAIS la clé service_role
+const OWNER_WA = '216XXXXXXXX';       // numéro WhatsApp du patron, sans + ni espaces
+// ========================
+
+const $ = id => document.getElementById(id);
+const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => (n / 1000).toFixed(3) + ' د.ت';
+const tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
+const LS = 'almas_order_' + tableNo;
+const H = {apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json'};
+const STATUS = {
+  nouvelle: 'الكوموند وصلت، في الانتظار',
+  acceptee: 'قيد التحضير',
+  servie: 'تخدمت، بالصحة',
+  payee: 'خالصة، يعيشك',
+  annulee: 'الكوموند تلغات'
+};
+let items = [], cart = {}, cat = null, order = null, timer = null;
+
+async function api(path, opt) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, {headers: H, ...opt});
+  if (!r.ok) { let e = {}; try { e = await r.json(); } catch (_) {} throw new Error(e.message || r.status); }
+  return r.status === 204 ? null : r.json().catch(() => null);
+}
+const rpc = (fn, body) => api('rpc/' + fn, {method: 'POST', body: JSON.stringify(body)});
+const saveOrder = () => { try { order ? localStorage.setItem(LS, JSON.stringify(order)) : localStorage.removeItem(LS); } catch (_) {} };
+const loadOrder = () => { try { return JSON.parse(localStorage.getItem(LS)); } catch (_) { return null; } };
+
+function renderMenu() {
+  const cats = [...new Set(items.map(i => i.category))];
+  if (!cat || !cats.includes(cat)) cat = cats[0];
+  $('cats').innerHTML = cats.map(c => `<button class="${c === cat ? 'on' : ''}" data-cat="${safe(c)}">${safe(c)}</button>`).join('');
+  $('list').innerHTML = items.filter(i => i.category === cat).map(i => {
+    const q = cart[i.id] || 0;
+    return `<div class="item"><div class="nm"><b>${safe(i.name)}</b><small>${money(i.price_millimes)}</small></div>
+      <div class="qty">${q ? `<button data-dec="${i.id}" aria-label="نقص">−</button><span>${q}</span>` : ''}<button class="add" data-inc="${i.id}" aria-label="زيد">+</button></div></div>`;
+  }).join('');
+  const n = Object.values(cart).reduce((a, b) => a + b, 0);
+  const tot = items.reduce((s, i) => s + (cart[i.id] || 0) * i.price_millimes, 0);
+  $('bSend').disabled = !n;
+  $('bSend').textContent = n ? `ابعث الكوموند · ${n} · ${money(tot)}` : 'ابعث الكوموند';
+}
+
+$('cats').onclick = e => { const b = e.target.closest('[data-cat]'); if (b) { cat = b.dataset.cat; renderMenu(); } };
+$('list').onclick = e => {
+  const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
+  if (inc) cart[inc.dataset.inc] = Math.min((cart[inc.dataset.inc] || 0) + 1, 20);
+  if (dec) { const id = dec.dataset.dec; cart[id] = (cart[id] || 1) - 1; if (cart[id] <= 0) delete cart[id]; }
+  renderMenu();
+};
+
+$('bSend').onclick = async () => {
+  $('err').textContent = '';
+  $('bSend').disabled = true;
+  const lines = items.filter(i => cart[i.id]).map(i => ({name: i.name, price: i.price_millimes, qty: cart[i.id]}));
+  try {
+    const res = await rpc('place_order', {
+      p_table: tableNo,
+      p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
+      p_note: $('note').value.trim() || null
+    });
+    order = {id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false};
+    saveOrder(); cart = {}; $('note').value = '';
+    showOrder();
+  } catch (e) {
+    $('err').textContent = /trop_de_commandes/.test(e.message)
+      ? 'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.'
+      : 'ما تبعثتش الكوموند. عاود جرّب.';
+    renderMenu();
+  }
+};
+
+function showOrder() {
+  $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); $('vOrder').classList.remove('hide');
+  $('oTable').textContent = 'طاولة ' + tableNo;
+  $('oLines').innerHTML = order.lines.map(l => `<div class="line"><div class="nm"><b>${safe(l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('');
+  paint(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
+}
+
+function paint() {
+  const done = order.status === 'payee' || order.status === 'annulee';
+  $('oStatus').textContent = STATUS[order.status] || order.status;
+  $('oTotal').textContent = money(order.total);
+  $('bBill').classList.toggle('hide', order.bill || done);
+  $('bNew').classList.toggle('hide', !done);
+  $('billBox').classList.toggle('hide', !(order.bill && !done));
+  if (order.bill && !done) drawBill();
+  if (done) clearInterval(timer);
+}
+
+function drawBill() {
+  try {
+    const q = qrcode(0, 'M'); q.addData('almas:' + order.id); q.make();
+    $('qr').innerHTML = q.createSvgTag({scalable: true});
+  } catch (_) { $('qr').textContent = order.id; }
+  const msg = ['حساب — طاولة ' + tableNo, ...order.lines.map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
+    'المجموع: ' + money(order.total), 'كود: ' + order.id].join('\n');
+  $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
+}
+
+async function poll() {
+  if (!order) return;
+  try {
+    const r = (await rpc('order_status', {p_id: order.id}))[0];
+    if (!r) { order = null; saveOrder(); return location.reload(); }
+    order.status = r.s_status; order.total = r.s_total; order.bill = r.s_bill;
+    saveOrder(); paint();
+  } catch (_) {}
+}
+
+$('bBill').onclick = async () => {
+  $('err2').textContent = '';
+  try { await rpc('request_bill', {p_id: order.id}); order.bill = true; saveOrder(); paint(); }
+  catch (_) { $('err2').textContent = 'ما تبعثش الطلب. عاود جرّب.'; }
+};
+$('bNew').onclick = () => { order = null; saveOrder(); location.reload(); };
+
+(async function init() {
+  if (!tableNo) {
+    $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
+    $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
+  }
+  $('hd').textContent = 'طاولة ' + tableNo;
+  order = loadOrder();
+  if (order) { showOrder(); return; }
+  try {
+    items = await api('menu_items?select=id,name,price_millimes,category&order=sort');
+    renderMenu();
+  } catch (_) {
+    $('list').innerHTML = '<div class="box">المنيو ما تحمّلش. حدّث الصفحة.</div>';
+  }
+})();
+</script>
+</body>
+</html>
