@@ -1,8 +1,8 @@
 /* Almas — liaison Supabase (chargé APRÈS le script principal de index.html) */
 (function () {
   // ===== À CONFIGURER (mêmes valeurs que dans menu.html) =====
-  const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
-  const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz'; // clé "anon" uniquement
+  const SB_URL = 'https://VOTRE-PROJET.supabase.co';
+  const SB_KEY = 'VOTRE_CLE_ANON'; // clé "anon" uniquement
   // ===========================================================
   if (!window.supabase || SB_KEY.indexOf('VOTRE') === 0) return; // pas configuré : l'app reste 100 % locale
 
@@ -127,17 +127,24 @@
   };
 
   // --- Scan du QR de l'addition (téléphone du client) ---
-  async function payScan(id) {
-    const r = await sb.from('orders').select('id,table_no,status,total_millimes').eq('id', id).maybeSingle();
-    const o = r.data;
-    if (!o) return toast('الكود موش معروف');
-    if (o.status === 'payee') return toast('هالكوموند خالصة من قبل');
-    if (o.status === 'annulee') return toast('هالكوموند ملغاة');
-    if (o.status === 'nouvelle') return toast('هالكوموند ما تقبلتش بعد. اقبلها الأول من 📲');
-    const t = db.tables.find(x => x.id === o.table_no);
+  async function payScan(ids) {
+    const r = await sb.from('orders').select('id,table_no,status,total_millimes').in('id', ids);
+    const os = r.data || [];
+    if (!os.length) return toast('الكود موش معروف');
+    const live = os.filter(o => o.status !== 'annulee');
+    const open = live.filter(o => o.status !== 'payee');
+    if (!open.length) return toast(live.length ? 'هالحساب خالص من قبل' : 'الكوموندات ملغاة');
+    const pend = open.filter(o => o.status === 'nouvelle').length;
+    if (pend === open.length) return toast('الكوموندات ما تقبلتش بعد. اقبلها الأول من 📲');
+    const tn = os[0].table_no, t = db.tables.find(x => x.id === tn);
     const tot = t ? t.items.reduce((s, c) => s + c.price * c.q, 0) : 0;
-    const d = await dlg({ title: '🧾 طاولة ' + o.table_no, msg: 'كوموند الحريف: ' + money(o.total_millimes / 1000) + '\nمجموع الطاولة: ' + money(tot), buttons: [{ t: 'خلاص الطاولة', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }] });
-    if (d && d.v === 'ok') closeTable(o.table_no);
+    const cloud = open.reduce((s, o) => s + o.total_millimes, 0);
+    const d = await dlg({
+      title: '🧾 طاولة ' + tn,
+      msg: 'كوموندات الحريف (' + open.length + '): ' + money(cloud / 1000) + '\nمجموع الطاولة: ' + money(tot) + (pend ? '\n⚠️ ' + pend + ' كوموند ما تقبلتش بعد (اقبلها من 📲)' : ''),
+      buttons: [{ t: 'خلاص الطاولة', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }]
+    });
+    if (d && d.v === 'ok') closeTable(tn);
   }
   async function scan() {
     if (!('BarcodeDetector' in window)) return toast('هالمتصفح ما يدعمش مسح QR. استعمل Chrome على أندرويد');
@@ -155,8 +162,8 @@
     const loop = async () => {
       if (!w.isConnected) return;
       try {
-        const r = await det.detect(v), m = r[0] && /^almas:([0-9a-f-]{36})$/.exec(r[0].rawValue);
-        if (m) { stop(); return payScan(m[1]); }
+        const r = await det.detect(v), m = r[0] && /^almas:([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/.exec(r[0].rawValue);
+        if (m) { stop(); return payScan(m[1].split(',')); }
       } catch (e) {}
       setTimeout(loop, 300);
     };

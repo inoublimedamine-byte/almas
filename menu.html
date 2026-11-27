@@ -51,6 +51,7 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
     <div id="list"></div>
     <textarea id="note" rows="2" maxlength="200" placeholder="ملاحظة (اختياري)، مثلا: بلا سكر"></textarea>
     <div class="err" id="err"></div>
+    <button class="btn light hide" id="bBack" style="margin-top:8px">رجوع للكوموندات</button>
   </section>
   <section id="vOrder" class="hide">
     <div class="box"><div class="mute" id="oTable"></div><div class="st" id="oStatus">…</div></div>
@@ -58,6 +59,7 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
     <div class="tot"><span>المجموع</span><span id="oTotal"></span></div>
     <div class="err" id="err2"></div>
     <button class="btn gold" id="bBill">اطلب الحساب</button>
+    <button class="btn light hide" id="bAdd" style="margin-top:12px">زيد كوموند</button>
     <div id="billBox" class="box hide" style="margin-top:12px">
       <div class="st">الحساب جاهز</div>
       <div class="mute">وري هالكود للنادل باش يخلّص</div>
@@ -71,9 +73,9 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid va
 
 <script>
 // ===== À CONFIGURER =====
-const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
-const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz';      // clé "anon" uniquement, JAMAIS la clé service_role
-const OWNER_WA = '21624888838';       // numéro WhatsApp du patron, sans + ni espaces
+const SB_URL = 'https://VOTRE-PROJET.supabase.co';
+const SB_KEY = 'VOTRE_CLE_ANON';      // clé "anon" uniquement, JAMAIS la clé service_role
+const OWNER_WA = '216XXXXXXXX';       // numéro WhatsApp du patron, sans + ni espaces
 // ========================
 
 const $ = id => document.getElementById(id);
@@ -89,7 +91,7 @@ const STATUS = {
   payee: 'خالصة، يعيشك',
   annulee: 'الكوموند تلغات'
 };
-let items = [], cart = {}, cat = null, order = null, timer = null;
+let items = [], cart = {}, cat = null, orders = [], timer = null;
 
 async function api(path, opt) {
   const r = await fetch(SB_URL + '/rest/v1/' + path, {headers: H, ...opt});
@@ -97,8 +99,8 @@ async function api(path, opt) {
   return r.status === 204 ? null : r.json().catch(() => null);
 }
 const rpc = (fn, body) => api('rpc/' + fn, {method: 'POST', body: JSON.stringify(body)});
-const saveOrder = () => { try { order ? localStorage.setItem(LS, JSON.stringify(order)) : localStorage.removeItem(LS); } catch (_) {} };
-const loadOrder = () => { try { return JSON.parse(localStorage.getItem(LS)); } catch (_) { return null; } };
+const saveOrders = () => { try { orders.length ? localStorage.setItem(LS, JSON.stringify(orders)) : localStorage.removeItem(LS); } catch (_) {} };
+const loadOrders = () => { try { const v = JSON.parse(localStorage.getItem(LS)); return Array.isArray(v) ? v : (v ? [v] : []); } catch (_) { return []; } };
 
 function renderMenu() {
   const cats = [...new Set(items.map(i => i.category))];
@@ -133,8 +135,8 @@ $('bSend').onclick = async () => {
       p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
       p_note: $('note').value.trim() || null
     });
-    order = {id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false};
-    saveOrder(); cart = {}; $('note').value = '';
+    orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false});
+    saveOrders(); cart = {}; $('note').value = '';
     showOrder();
   } catch (e) {
     $('err').textContent = /trop_de_commandes/.test(e.message)
@@ -147,47 +149,76 @@ $('bSend').onclick = async () => {
 function showOrder() {
   $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); $('vOrder').classList.remove('hide');
   $('oTable').textContent = 'طاولة ' + tableNo;
-  $('oLines').innerHTML = order.lines.map(l => `<div class="line"><div class="nm"><b>${safe(l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('');
   paint(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
 }
 
 function paint() {
-  const done = order.status === 'payee' || order.status === 'annulee';
-  $('oStatus').textContent = STATUS[order.status] || order.status;
-  $('oTotal').textContent = money(order.total);
-  $('bBill').classList.toggle('hide', order.bill || done);
+  const live = orders.filter(o => o.status !== 'annulee');
+  const open = live.filter(o => o.status !== 'payee');
+  const done = !open.length;
+  const asked = open.length > 0 && open.every(o => o.bill);
+  $('oStatus').textContent = done ? (live.length ? STATUS.payee : STATUS.annulee) : (asked ? 'الحساب جاهز' : 'كوموندات الطاولة');
+  $('oLines').innerHTML = orders.map((o, i) =>
+    `<div class="mute" style="margin:12px 4px 6px">كوموند ${i + 1} — ${safe(STATUS[o.status] || o.status)}</div>` +
+    o.lines.map(l => `<div class="line"${o.status === 'annulee' ? ' style="opacity:.45"' : ''}><div class="nm"><b>${safe(l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('')
+  ).join('');
+  $('oTotal').textContent = money(live.reduce((s, o) => s + o.total, 0));
+  $('bBill').classList.toggle('hide', done || asked);
+  $('bAdd').classList.toggle('hide', done || asked);
   $('bNew').classList.toggle('hide', !done);
-  $('billBox').classList.toggle('hide', !(order.bill && !done));
-  if (order.bill && !done) drawBill();
+  $('billBox').classList.toggle('hide', done || !asked);
+  if (!done && asked) drawBill(open);
   if (done) clearInterval(timer);
 }
 
-function drawBill() {
-  try {
-    const q = qrcode(0, 'M'); q.addData('almas:' + order.id); q.make();
-    $('qr').innerHTML = q.createSvgTag({scalable: true});
-  } catch (_) { $('qr').textContent = order.id; }
-  const msg = ['حساب — طاولة ' + tableNo, ...order.lines.map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
-    'المجموع: ' + money(order.total), 'كود: ' + order.id].join('\n');
+// Le QR et le message WhatsApp regroupent TOUTES les commandes non payées de la table.
+function drawBill(open) {
+  const ids = open.map(o => o.id);
+  try { const q = qrcode(0, 'M'); q.addData('almas:' + ids.join(',')); q.make(); $('qr').innerHTML = q.createSvgTag({scalable: true}); }
+  catch (_) { $('qr').textContent = ids.join(' '); }
+  const m = {};
+  open.forEach(o => o.lines.forEach(l => { const k = l.name + '|' + l.price; m[k] = m[k] || {name: l.name, price: l.price, qty: 0}; m[k].qty += l.qty; }));
+  const msg = ['حساب — طاولة ' + tableNo, ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
+    'المجموع: ' + money(open.reduce((s, o) => s + o.total, 0)), 'كود: ' + ids.map(i => i.slice(0, 8)).join(' ')].join('\n');
   $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
 }
 
 async function poll() {
-  if (!order) return;
-  try {
-    const r = (await rpc('order_status', {p_id: order.id}))[0];
-    if (!r) { order = null; saveOrder(); return location.reload(); }
-    order.status = r.s_status; order.total = r.s_total; order.bill = r.s_bill;
-    saveOrder(); paint();
-  } catch (_) {}
+  if (!orders.length) return;
+  await Promise.all(orders.map(async o => {
+    if (o.status === 'payee' || o.status === 'annulee') return;
+    try {
+      const r = (await rpc('order_status', {p_id: o.id}))[0];
+      if (!r) { o.status = 'annulee'; return; }
+      o.status = r.s_status; o.total = r.s_total; o.bill = r.s_bill;
+    } catch (_) {}
+  }));
+  saveOrders(); paint();
 }
 
 $('bBill').onclick = async () => {
   $('err2').textContent = '';
-  try { await rpc('request_bill', {p_id: order.id}); order.bill = true; saveOrder(); paint(); }
+  const open = orders.filter(o => o.status !== 'annulee' && o.status !== 'payee');
+  try { await Promise.all(open.map(o => rpc('request_bill', {p_id: o.id}))); open.forEach(o => o.bill = true); saveOrders(); paint(); }
   catch (_) { $('err2').textContent = 'ما تبعثش الطلب. عاود جرّب.'; }
 };
-$('bNew').onclick = () => { order = null; saveOrder(); location.reload(); };
+$('bNew').onclick = () => { orders = []; saveOrders(); location.reload(); };
+
+async function openMenu() {
+  if (!items.length) {
+    try { items = await api('menu_items?select=id,name,price_millimes,category&order=sort'); }
+    catch (_) {
+      if (orders.length) { $('err2').textContent = 'المنيو ما تحمّلش. عاود جرّب.'; return; }
+      $('list').innerHTML = '<div class="box">المنيو ما تحمّلش. حدّث الصفحة.</div>'; return;
+    }
+  }
+  clearInterval(timer);
+  $('vOrder').classList.add('hide'); $('vMenu').classList.remove('hide'); $('bar').classList.remove('hide');
+  $('bBack').classList.toggle('hide', !orders.length);
+  renderMenu();
+}
+$('bAdd').onclick = openMenu;
+$('bBack').onclick = showOrder;
 
 (async function init() {
   if (!tableNo) {
@@ -195,14 +226,8 @@ $('bNew').onclick = () => { order = null; saveOrder(); location.reload(); };
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }
   $('hd').textContent = 'طاولة ' + tableNo;
-  order = loadOrder();
-  if (order) { showOrder(); return; }
-  try {
-    items = await api('menu_items?select=id,name,price_millimes,category&order=sort');
-    renderMenu();
-  } catch (_) {
-    $('list').innerHTML = '<div class="box">المنيو ما تحمّلش. حدّث الصفحة.</div>';
-  }
+  orders = loadOrders();
+  if (orders.length) showOrder(); else openMenu();
 })();
 </script>
 </body>
