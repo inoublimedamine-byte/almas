@@ -35,7 +35,9 @@
     '<div class="panel"><strong>☁️ كوموندات الحرفاء بالـQR</strong><div class="mini" id="clInfo" style="margin:6px 0"></div>' +
     '<input class="field" id="clE" type="email" autocomplete="username" placeholder="Email">' +
     '<input class="field" id="clP" type="password" autocomplete="current-password" placeholder="كلمة السر">' +
-    '<button class="btn gold" id="clIn">دخول</button><button class="btn light hide" id="clOut">خروج</button></div>');
+    '<button class="btn gold" id="clIn">دخول</button><button class="btn light hide" id="clOut">خروج</button>' +
+    '<button class="btn light hide" id="clBk">☁️ احفظ نسخة احتياطية توّا</button>' +
+    '<button class="btn light hide" id="clRs">↩️ استرجاع نسخة من السحاب</button></div>');
 
   // --- Connexion ---
   async function onUser(u) {
@@ -43,8 +45,10 @@
     $('cl').classList.toggle('hide', !u);
     $('clOut').classList.toggle('hide', !u);
     $('clIn').classList.toggle('hide', !!u);
+    $('clBk').classList.toggle('hide', !u);
+    $('clRs').classList.toggle('hide', !u);
     $('clInfo').textContent = u ? 'متصل: ' + u.email : 'موش متصل';
-    if (u) { listen(); refreshPending(); syncMenu(true); }
+    if (u) { listen(); refreshPending(); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
     else if (ch) { sb.removeChannel(ch); ch = null; }
   }
   sb.auth.onAuthStateChange((_e, s) => onUser(s && s.user));
@@ -73,6 +77,41 @@
   }
   const persist0 = persist;
   persist = function () { persist0.apply(this, arguments); clearTimeout(timer); timer = setTimeout(() => syncMenu(false), 1500); };
+
+  // --- Sauvegarde cloud : une copie par jour (30 jours gardés), jamais depuis une base vide ---
+  let bkTimer = null, lastBk = 0;
+  async function cloudBackup(manual) {
+    if (!user || key === '__none' || !db || !Array.isArray(db.orders)) return;
+    const data = JSON.parse(JSON.stringify(db));
+    delete data._account;
+    if (JSON.stringify(data).length > 3e6) (data.items || []).forEach(p => { delete p.img; }); // trop lourd : sans photos
+    const r = await sb.from('app_backups').upsert({ day: dayKey(), data, updated_at: new Date().toISOString() }, { onConflict: 'day' });
+    if (r.error) { if (manual) toast('ما تحفظتش النسخة. عاود جرّب'); return; }
+    lastBk = Date.now();
+    sb.from('app_backups').delete().lt('updated_at', new Date(Date.now() - 30 * 864e5).toISOString()).then(() => {});
+    if (manual) toast('☁️ تحفظت النسخة الاحتياطية');
+  }
+  const persist1 = persist;
+  persist = function () {
+    persist1.apply(this, arguments);
+    clearTimeout(bkTimer);
+    bkTimer = setTimeout(() => { if (Date.now() - lastBk > 30 * 60 * 1000) cloudBackup(false); }, 60000);
+  };
+  $('clBk').onclick = () => cloudBackup(true);
+  $('clRs').onclick = async () => {
+    const l = await sb.from('app_backups').select('day,updated_at').order('updated_at', { ascending: false }).limit(5);
+    if (l.error || !l.data.length) return toast('ما فما حتى نسخة في السحاب');
+    const d = await dlg({ title: '↩️ استرجاع من السحاب', msg: 'اختار النسخة (التاريخ)', buttons: l.data.map((x, i) => ({ t: x.day, cls: i ? '' : 'gold', v: x.day })).concat([{ t: 'إلغاء', v: null }]) });
+    if (!d || d.v == null) return;
+    const r = await sb.from('app_backups').select('data').eq('day', d.v).single();
+    if (r.error || !r.data) return toast('ما تحمّلتش النسخة');
+    const n = r.data.data;
+    if (!n || !Array.isArray(n.items) || !Array.isArray(n.orders)) return toast('النسخة غير صحيحة');
+    if (!(await askConfirm('استرجاع', 'استرجاع نسخة ' + d.v + '؟ سيتم تعويض بيانات التطبيق الحالية.', 'استرجاع'))) return;
+    if (!Array.isArray(n.tables)) n.tables = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, items: [] }));
+    n.items.forEach(p => { if (!p.img) { const o = db.items.find(x => x.id === p.id); if (o && o.img) p.img = o.img; } });
+    db = n; normDb(); persist(); toast('تم الاسترجاع');
+  };
 
   // --- Commandes clients en direct ---
   async function refreshPending() {
