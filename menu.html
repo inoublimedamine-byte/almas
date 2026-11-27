@@ -85,14 +85,12 @@ let tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
 const qs = new URLSearchParams(location.search);
 const qkey = qs.get('k') || '';                              // clé secrète du QR (vérifiée côté serveur)
 const takeaway = qs.get('emporter') === '1';                 // QR « à emporter » : ?table=N&emporter=1
-if (takeaway) {   // chaque client à emporter reçoit son propre numéro de ticket (100-999)
-  const TK = 'almas_take_no';
-  let k = 0; try { k = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
-  if (k < 100) { k = 100 + Math.floor(Math.random() * 900); try { localStorage.setItem(TK, k); } catch (_) {} }
-  tableNo = k;
+const TK = 'almas_take_no';
+if (takeaway) {   // le numéro de ticket est attribué par le serveur à la 1re commande
+  tableNo = 0; try { tableNo = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
 }
-const tableLabel = takeaway ? '🥡 للخارج · رقم ' + tableNo : 'طاولة ' + tableNo;
-const LS = 'almas_order_' + tableNo;
+const tableLabel = () => takeaway ? (tableNo ? '🥡 للخارج · رقم ' + tableNo : '🥡 للخارج') : 'طاولة ' + tableNo;
+const LS = takeaway ? 'almas_order_take' : 'almas_order_' + tableNo;
 const H = {apikey: SB_KEY, 'Content-Type': 'application/json'};
 if (SB_KEY.startsWith('eyJ')) H.Authorization = 'Bearer ' + SB_KEY; // ancienne clé JWT seulement
 const STATUS = {
@@ -142,11 +140,12 @@ $('bSend').onclick = async () => {
   const lines = items.filter(i => cart[i.id]).map(i => ({name: i.name, price: i.price_millimes, qty: cart[i.id]}));
   try {
     const res = await rpc('place_order', {
-      p_table: tableNo,
+      p_table: takeaway ? 0 : tableNo,
       p_key: qkey,
       p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
       p_note: ((takeaway ? '🥡 EMPORTER ' : '') + $('note').value.trim()).trim() || null
     });
+    if (takeaway) { tableNo = res[0].o_table; try { localStorage.setItem(TK, tableNo); } catch (_) {} }
     orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false});
     saveOrders(); cart = {}; $('note').value = '';
     showOrder();
@@ -162,7 +161,7 @@ $('bSend').onclick = async () => {
 
 function showOrder() {
   $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); $('vOrder').classList.remove('hide');
-  $('oTable').textContent = tableLabel;
+  $('oTable').textContent = tableLabel();
   paint(); poll(); clearInterval(timer); timer = setInterval(poll, 5000);
 }
 
@@ -179,7 +178,8 @@ function paint() {
   $('oTotal').textContent = money(live.reduce((s, o) => s + o.total, 0));
   $('bBill').classList.toggle('hide', done || asked);
   $('bAdd').classList.toggle('hide', done || asked);
-  $('bNew').classList.toggle('hide', !done);
+  $('bNew').classList.toggle('hide', !(done || takeaway));
+  $('bNew').textContent = done ? 'كوموند جديدة' : 'حريف آخر؟ كوموند جديدة';
   $('billBox').classList.toggle('hide', done || !asked);
   if (!done && asked) drawBill(open);
   if (done) clearInterval(timer);
@@ -192,7 +192,7 @@ function drawBill(open) {
   catch (_) { $('qr').textContent = ids.join(' '); }
   const m = {};
   open.forEach(o => o.lines.forEach(l => { const k = l.name + '|' + l.price; m[k] = m[k] || {name: l.name, price: l.price, qty: 0}; m[k].qty += l.qty; }));
-  const msg = ['حساب — ' + tableLabel, ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
+  const msg = ['حساب — ' + tableLabel(), ...Object.values(m).map(l => `${l.name} × ${l.qty}  ${money(l.price * l.qty)}`),
     'المجموع: ' + money(open.reduce((s, o) => s + o.total, 0)), 'كود: ' + ids.map(i => i.slice(0, 8)).join(' ')].join('\n');
   $('wa').href = 'https://wa.me/' + OWNER_WA + '?text=' + encodeURIComponent(msg);
 }
@@ -216,7 +216,7 @@ $('bBill').onclick = async () => {
   try { await Promise.all(open.map(o => rpc('request_bill', {p_id: o.id}))); open.forEach(o => o.bill = true); saveOrders(); paint(); }
   catch (_) { $('err2').textContent = 'ما تبعثش الطلب. عاود جرّب.'; }
 };
-$('bNew').onclick = () => { orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem('almas_take_no'); } catch (_) {} } location.reload(); };
+$('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.status !== 'annulee') && !confirm('تخلّي هالكوموند وتبدا وحدة جديدة؟')) return; orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem(TK); } catch (_) {} } location.reload(); };
 
 async function openMenu() {
   if (!items.length) {
@@ -235,12 +235,15 @@ $('bAdd').onclick = openMenu;
 $('bBack').onclick = showOrder;
 
 (async function init() {
-  if (!tableNo || (!qkey && !loadOrders().length)) {
+  if ((!takeaway && !tableNo) || (!qkey && !loadOrders().length)) {
     $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }
-  $('hd').textContent = tableLabel;
   orders = loadOrders();
+  if (takeaway && orders.every(o => o.status === 'payee' || o.status === 'annulee')) {   // ancien ticket fini : nouveau client
+    orders = []; saveOrders(); tableNo = 0; try { localStorage.removeItem(TK); } catch (_) {}
+  }
+  $('hd').textContent = tableLabel();
   if (orders.length) showOrder(); else openMenu();
 })();
 </script>
