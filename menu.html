@@ -83,8 +83,8 @@ const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&l
 const money = n => (n / 1000).toFixed(3) + ' د.ت';
 let tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
 const qs = new URLSearchParams(location.search);
+const qkey = qs.get('k') || '';                              // clé secrète du QR (vérifiée côté serveur)
 const takeaway = qs.get('emporter') === '1';                 // QR « à emporter » : ?table=N&emporter=1
-const nTables = Math.max(0, Math.min(40, parseInt(qs.get('n'), 10) || 0)); // QR général : ?n=8
 if (takeaway) {   // chaque client à emporter reçoit son propre numéro de ticket (100-999)
   const TK = 'almas_take_no';
   let k = 0; try { k = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
@@ -143,6 +143,7 @@ $('bSend').onclick = async () => {
   try {
     const res = await rpc('place_order', {
       p_table: tableNo,
+      p_key: qkey,
       p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
       p_note: ((takeaway ? '🥡 EMPORTER ' : '') + $('note').value.trim()).trim() || null
     });
@@ -150,9 +151,11 @@ $('bSend').onclick = async () => {
     saveOrders(); cart = {}; $('note').value = '';
     showOrder();
   } catch (e) {
-    $('err').textContent = /trop_de_commandes/.test(e.message)
-      ? 'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.'
-      : 'ما تبعثتش الكوموند. عاود جرّب.';
+    $('err').textContent = /cle_invalide/.test(e.message)
+      ? 'الكود موش صالح. امسح الـQR الموجود على الطاولة.'
+      : /trop_de_commandes/.test(e.message)
+        ? 'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.'
+        : 'ما تبعثتش الكوموند. عاود جرّب.';
     renderMenu();
   }
 };
@@ -231,17 +234,8 @@ async function openMenu() {
 $('bAdd').onclick = openMenu;
 $('bBack').onclick = showOrder;
 
-// QR général : le client choisit sa table
-function showPicker() {
-  $('hd').textContent = 'اختار طاولتك';
-  $('bar').classList.add('hide'); $('bBack').classList.add('hide'); $('cats').innerHTML = '';
-  $('list').innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:6px 0">' +
-    Array.from({length: nTables}, (_, i) => `<a class="btn" style="text-decoration:none;text-align:center;margin:0" href="?table=${i + 1}">${i + 1}</a>`).join('') + '</div>';
-}
-
 (async function init() {
-  if (!tableNo && nTables) { showPicker(); return; }
-  if (!tableNo) {
+  if (!tableNo || (!qkey && !loadOrders().length)) {
     $('hd').textContent = 'امسح الـQR الموجود على الطاولة';
     $('vMenu').classList.add('hide'); $('bar').classList.add('hide'); return;
   }

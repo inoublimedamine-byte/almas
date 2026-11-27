@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Almas — QR des tables</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js"></script>
 <style>
 body{margin:0;padding:14px;background:#f5f0e8;color:#30251b;font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif}
 .ctl{max-width:640px;margin:0 auto 16px;display:grid;gap:8px}
@@ -12,17 +13,27 @@ body{margin:0;padding:14px;background:#f5f0e8;color:#30251b;font-family:system-u
 .ctl input{width:100%;padding:12px;border:1px solid #e9dfd1;border-radius:10px;font:inherit;background:#fff;direction:ltr}
 .ctl .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ctl button{min-height:48px;border:0;border-radius:12px;background:#392518;color:#ffe5b7;font:inherit;font-weight:800}
+.ctl .msg{font-size:13px;color:#b9443b;min-height:18px}
 .sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;max-width:900px;margin:auto}
 .card{background:#fff;border:1px solid #e9dfd1;border-radius:14px;padding:14px;text-align:center;break-inside:avoid}
 .card .brand{font:400 15px Georgia,serif;letter-spacing:4px;color:#8a5f2b}
 .card svg{width:100%;max-width:180px;height:auto;display:block;margin:8px auto}
 .card b{display:block;font-size:22px}
 .card small{display:block;color:#8b7b68;font-size:12px;margin-top:2px}
+.hide{display:none!important}
 @media print{body{background:#fff;padding:0}.ctl{display:none}.sheet{grid-template-columns:repeat(2,1fr);gap:8mm}.card{border:1px solid #999;padding:8mm}.card svg{max-width:60mm}}
 </style>
 </head>
 <body>
-<div class="ctl">
+<div class="ctl" id="login">
+  <strong>دخول صاحب المقهى</strong>
+  <div style="font-size:12px;color:#8b7b68">نفس الإيميل وكلمة السر متاع ☁️ في التطبيق. الكودات فيها مفاتيح سرية، ما تتولّدش كان بعد الدخول.</div>
+  <input id="em" type="email" autocomplete="username" placeholder="Email">
+  <input id="pw" type="password" autocomplete="current-password" placeholder="كلمة السر">
+  <button id="in">دخول</button>
+  <div class="msg" id="lmsg"></div>
+</div>
+<div class="ctl hide" id="panel">
   <label for="base">عنوان صفحة المنيو</label>
   <input id="base" value="https://inoublimedamine-byte.github.io/Almascoffee/menu.html">
   <div class="row">
@@ -31,30 +42,64 @@ body{margin:0;padding:14px;background:#f5f0e8;color:#30251b;font-family:system-u
   </div>
   <div style="font-size:12px;color:#8b7b68">QR للخارج: كل حريف يتحصّل على رقم تيكي خاص بيه (من 100).</div>
   <button id="pr">طباعة</button>
+  <button id="out" style="background:#efe4d5;color:#392518">خروج</button>
+  <div class="msg" id="msg"></div>
 </div>
 <div class="sheet" id="sheet"></div>
 <script>
+const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
+const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz'; // clé "anon" uniquement
+const sb = supabase.createClient(SB_URL, SB_KEY);
 const $ = id => document.getElementById(id);
+let keys = null;
+
+async function loadKeys() {
+  const r = await sb.from('qr_keys').select('no,k');
+  if (r.error || !r.data.length) { keys = null; return false; }
+  keys = {}; r.data.forEach(x => keys[x.no] = x.k);
+  return true;
+}
+
+function card(url, title, sub) {
+  const q = qrcode(0, 'M'); q.addData(url); q.make();
+  return '<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) + '<b>' + title + '</b><small>' + sub + '</small></div>';
+}
+
 function draw() {
+  if (!keys) { $('sheet').innerHTML = ''; return; }
   const base = $('base').value.trim().replace(/\?.*$/, '');
   const n = Math.max(1, Math.min(40, parseInt($('n').value, 10) || 1));
-  const out = [];
+  const out = [], missing = [];
   for (let i = 1; i <= n; i++) {
-    const url = base + '?table=' + i;
-    const q = qrcode(0, 'M'); q.addData(url); q.make();
-    out.push('<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) +
-      '<b>طاولة ' + i + '</b><small>امسح الكود باش تطلب</small></div>');
+    if (!keys[i]) { missing.push(i); continue; }
+    out.push(card(base + '?table=' + i + '&k=' + keys[i], 'طاولة ' + i, 'امسح الكود باش تطلب'));
   }
-  // QR général (le client choisit sa table) + QR à emporter (un numéro de ticket par client)
-  const card = (url, title, sub) => { const q = qrcode(0, 'M'); q.addData(url); q.make();
-    return '<div class="card"><div class="brand">ALMAS</div>' + q.createSvgTag({scalable: true}) + '<b>' + title + '</b><small>' + sub + '</small></div>'; };
-  out.push(card(base + '?n=' + n, 'QR عام', 'امسح الكود، اختار طاولتك وأطلب'));
-  out.push(card(base + '?emporter=1', '🥡 للخارج', 'emporter — كل حريف يتحصّل على رقم'));
+  if (keys[0]) out.push(card(base + '?emporter=1&k=' + keys[0], '🥡 للخارج', 'emporter — كل حريف يتحصّل على رقم'));
+  else missing.push('emporter');
+  $('msg').textContent = missing.length ? 'ما فماش مفتاح لـ: ' + missing.join('، ') + ' (شغّل cles-qr.sql)' : '';
   $('sheet').innerHTML = out.join('');
 }
+
+async function refresh() {
+  const s = (await sb.auth.getSession()).data.session;
+  $('login').classList.toggle('hide', !!s);
+  $('panel').classList.toggle('hide', !s);
+  if (!s) { keys = null; draw(); return; }
+  if (!(await loadKeys())) $('msg').textContent = 'ما تحمّلتش المفاتيح. شغّل cles-qr.sql في Supabase.';
+  draw();
+}
+
+$('in').onclick = async () => {
+  $('lmsg').textContent = '';
+  const r = await sb.auth.signInWithPassword({email: $('em').value.trim(), password: $('pw').value});
+  $('pw').value = '';
+  if (r.error) $('lmsg').textContent = 'الدخول فشل: تأكد من الإيميل وكلمة السر';
+  else refresh();
+};
+$('out').onclick = async () => { await sb.auth.signOut(); refresh(); };
 $('go').onclick = draw;
 $('pr').onclick = () => { draw(); window.print(); };
-draw();
+refresh();
 </script>
 </body>
 </html>
