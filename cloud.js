@@ -126,9 +126,39 @@
   };
   $('clOut').onclick = () => { manualOut = true; store.removeItem(CRED); sb.auth.signOut(); };
 
+  // --- Photos : base64 dans le téléphone -> Supabase Storage (l'app ne garde que le lien) ---
+  const BUCKET = 'menu-photos';
+  const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  let migrating = false, photoOff = false;
+  async function migratePhotos() {
+    if (!user || migrating || photoOff || !db || !Array.isArray(db.items)) return;
+    const todo = db.items.filter(p => typeof p.img === 'string' && p.img.indexOf('data:image') === 0);
+    if (!todo.length) return;
+    migrating = true;
+    let n = 0;
+    try {
+      for (const p of todo) {
+        const src = p.img;
+        try {
+          const blob = await (await fetch(src)).blob();
+          const path = 'p' + String(p.id).replace(/[^\w-]/g, '') + '-' + hash(src) + '.jpg';   // le nom change si la photo change
+          const up = await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
+          if (up.error) {
+            if (/bucket|row-level|policy|not found|unauthorized/i.test(up.error.message || '')) { photoOff = true; toast('شغّل photos-storage.sql في Supabase باش تتنقل التصاور للسحاب'); }
+            break;   // réseau coupé : on réessaiera à la prochaine synchro
+          }
+          const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+          if (url && p.img === src) { p.img = url; n++; }   // si la photo a changé entre-temps, on ne touche à rien
+        } catch (_) { break; }
+      }
+    } finally { migrating = false; }
+    if (n) { persist0.call(this); toast('☁️ ' + n + ' تصويرة تنقلت للسحاب'); }
+  }
+
   // --- Prix et articles : app -> Supabase (après chaque sauvegarde locale) ---
   async function syncMenu(force) {
     if (!user || !db.items.length) return;
+    await migratePhotos();
     const rows = db.items.map((p, i) => ({
       local_id: p.id, name: p.name, category: p.category || 'Boisson chaude',
       price_millimes: Math.round(Number(p.price) * 1000) || 0,
