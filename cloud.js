@@ -262,7 +262,39 @@
       toast('✅ ' + tl(tn) + ': تخدمت');
       b.remove();
     };
+    // 🎁 Solde cadeau : si un client connecté de cette table a du solde, bouton pour le déduire de l'addition
+    if (!t.items.some(i => i.loy)) {
+      sb.from('orders').select('customer_id').eq('table_no', tn).in('status', ['acceptee', 'servie']).not('customer_id', 'is', null).then(async r => {
+        if (r.error || !r.data || !r.data.length) return;
+        for (const id of [...new Set(r.data.map(x => x.customer_id))].slice(0, 3)) {
+          const x = await sb.rpc('owner_customer_info', { p_customer: id });
+          if (x.error || !x.data || !(x.data.balance > 0)) continue;
+          const w2 = $('tableDetail') && $('tableDetail').querySelector('.table-detail');
+          if (!w2 || activeTable !== tn || $('clLoy' + id)) continue;
+          const lb = document.createElement('button');
+          lb.className = 'btn light'; lb.id = 'clLoy' + id;
+          lb.textContent = '🎁 رصيد ' + x.data.first + ': ' + fmtM(x.data.balance) + ' — خصم';
+          const cg = w2.querySelector('[onclick^="closeTable"]');
+          cg ? w2.insertBefore(lb, cg) : w2.appendChild(lb);
+          lb.onclick = () => redeemOnTable(tn, id, x.data);
+        }
+      });
+    }
   };
+  async function redeemOnTable(tn, cid, info) {
+    const t = db.tables.find(x => x.id === tn); if (!t) return;
+    const max = Math.min(info.balance / 1000, t.items.reduce((s, c) => s + c.price * c.q, 0));
+    if (!(max > 0)) return toast('مجموع الطاولة صفر');
+    const r = await dlg({ title: '🎁 خصم رصيد الوفاء', msg: info.first + ' ' + info.last + '\nالرصيد: ' + fmtM(info.balance) + '\nقدّاش تخصم من هالحساب؟', input: { type: 'number', value: max }, buttons: [{ t: 'خصم', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }] });
+    if (!r || r.v !== 'ok') return;
+    const mm = Math.round(Math.min(Number(r.text) || 0, max) * 1000);
+    if (mm <= 0) return;
+    const u = await sb.rpc('owner_redeem', { p_customer: cid, p_amount: mm, p_table: tn });
+    if (u.error) return toast(/solde/.test(u.error.message) ? 'الرصيد ما يكفيش' : 'ما تخصمش. عاود جرّب');
+    const t2 = db.tables.find(x => x.id === tn); if (!t2) return;
+    t2.items.push({ pid: null, name: '🎁 رصيد الوفاء — ' + info.first, price: -mm / 1000, q: 1, loy: true });
+    persist(); activeTable = tn; renderTableDetail(); toast('🎁 تخصم ' + fmtM(mm));
+  }
 
   // --- Paiement : quand une table est soldée, ses commandes cloud passent à "payée" ---
   const closeTable0 = closeTable;
@@ -386,7 +418,7 @@
   // --- Fidélité : 10 commandes payées = 5 % du total. Le client reçoit le message sur WhatsApp (tu appuies sur envoyer). ---
   if (sec) sec.insertAdjacentHTML('beforeend',
     '<div class="panel hide" id="lyP"><strong>🎁 الوفاء (Fidélité)</strong><div class="mini" id="lyInfo" style="margin:6px 0"></div>' +
-    '<button class="btn gold" id="lyRw">🎁 مكافآت تستنى</button><button class="btn light" id="lyCl">👥 الحرفاء المسجلين</button></div>');
+    '<button class="btn gold" id="lyRw">🎁 مكافآت تستنى</button><button class="btn light" id="lyCl">👥 الحرفاء المسجلين</button><button class="btn light" id="lyBd">🎂 أعياد ميلاد (7 أيام)</button></div>');
   const fmtM = m => money((Number(m) || 0) / 1000);
   async function lyPending() {
     const r = await sb.from('loyalty_cards')
@@ -399,7 +431,29 @@
     const d = await lyPending();
     $('lyInfo').textContent = d == null ? 'ما تحمّلتش. شغّل fidelite.sql في Supabase' : d.length ? '🎁 ' + d.length + ' مكافأة تستنى الإرسال' : 'ما فما حتى مكافأة تستنى ✅';
     $('lyRw').textContent = '🎁 مكافآت تستنى' + (d && d.length ? ' (' + d.length + ')' : '');
+    const bd = await lyBirthdays();
+    if (bd && bd.length) { $('lyInfo').textContent += ' · 🎂 ' + bd.length + ' عيد ميلاد في 7 أيام'; $('lyBd').textContent = '🎂 أعياد ميلاد (' + bd.length + ')'; }
   }
+  // anniversaires des 7 prochains jours (la date de naissance est déjà enregistrée à l'inscription)
+  async function lyBirthdays() {
+    const r = await sb.from('customers').select('first_name,last_name,phone,birth_date').limit(2000);
+    if (r.error) return null;
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    return r.data.map(c => {
+      const p = String(c.birth_date || '').split('-').map(Number); if (p.length < 3) return null;
+      let n = new Date(t0.getFullYear(), p[1] - 1, p[2]); if (n < t0) n = new Date(t0.getFullYear() + 1, p[1] - 1, p[2]);
+      return { c, days: Math.round((n - t0) / 864e5), age: n.getFullYear() - p[0], d: p[2] + '/' + p[1] };
+    }).filter(x => x && x.days <= 7).sort((a, b) => a.days - b.days);
+  }
+  $('lyBd').onclick = async () => {
+    const l = await lyBirthdays();
+    if (l == null) return toast('ما تحمّلتش. تأكد أنك شغّلت fidelite.sql');
+    if (!l.length) return toast('ما فما حتى عيد ميلاد في 7 أيام 🎂');
+    const d = await dlg({ title: '🎂 أعياد ميلاد', msg: 'اضغط على حريف باش تبعثلو تهنئة WhatsApp', buttons: l.map((x, i) => ({ t: (x.days === 0 ? '🎉 اليوم · ' : x.d + ' · ') + x.c.first_name + ' ' + x.c.last_name + ' (' + x.age + ')', cls: x.days === 0 ? 'gold' : '', v: i })).concat([{ t: 'سكّر', v: null }]) });
+    if (!d || d.v == null) return;
+    const x = l[d.v].c, w = waLink(x.phone, 'عيد ميلاد سعيد ' + x.first_name + ' 🎂🎉\nكل عام وانت بخير. فريق Almas يستناك باش نحتفلو معاك ☕');
+    w ? window.open(w, '_blank') : toast('ما عندوش رقم تلفون');
+  };
   const lyShow = u => { $('lyP').classList.toggle('hide', !u); if (u) lyRefresh(); };
   sb.auth.onAuthStateChange((_e, s) => lyShow(s && s.user));
   sb.auth.getSession().then(r => lyShow(r.data.session && r.data.session.user));
@@ -423,9 +477,30 @@
     const r = await sb.from('customers').select('id,first_name,last_name,phone', { count: 'exact' }).order('created_at', { ascending: false }).limit(60);
     if (r.error) return toast('ما تحمّلتش. تأكد أنك شغّلت fidelite.sql');
     if (!r.data.length) return toast('ما فما حتى حريف مسجّل بعد');
-    const d = await dlg({ title: '👥 الحرفاء (' + (r.count || r.data.length) + ')', msg: 'اضغط على حريف باش تبعثلو WhatsApp', buttons: r.data.map((x, i) => ({ t: x.first_name + ' ' + x.last_name + ' · ' + x.phone, v: i })).concat([{ t: 'سكّر', v: null }]) });
-    if (d && d.v != null) { const x = r.data[d.v], l = waLink(x.phone, 'السلام ' + x.first_name); l && window.open(l, '_blank'); }
+    const d = await dlg({ title: '👥 الحرفاء (' + (r.count || r.data.length) + ')', msg: 'اضغط على حريف: كاشيات، رصيد، WhatsApp', buttons: r.data.map((x, i) => ({ t: x.first_name + ' ' + x.last_name + ' · ' + x.phone, v: i })).concat([{ t: 'سكّر', v: null }]) });
+    if (d && d.v != null) clientActions(r.data[d.v]);
   };
+  async function clientActions(x) {
+    const i = await sb.rpc('owner_customer_info', { p_customer: x.id }), inf = i.data || {};
+    const d = await dlg({ title: x.first_name + ' ' + x.last_name, msg: '📞 ' + x.phone + '\nالكاشيات: ' + (inf.stamps == null ? '?' : inf.stamps) + '/10\n🎁 الرصيد: ' + fmtM(inf.balance || 0),
+      buttons: [{ t: '➕ زيد كاشي', cls: 'gold', v: 'add' }, { t: '➖ نحّي آخر كاشي', v: 'rm' }, { t: '💬 WhatsApp', v: 'wa' }, { t: 'سكّر', v: null }] });
+    if (!d || !d.v) return;
+    if (d.v === 'wa') { const l = waLink(x.phone, 'السلام ' + x.first_name); return l && window.open(l, '_blank'); }
+    if (d.v === 'add') {
+      const a = await dlg({ title: '➕ كاشي لـ ' + x.first_name, msg: 'مبلغ الكوموند بالدينار (يدخل في حساب الـ5%). اكتب 0 كان ما تحبش', input: { type: 'number', value: 0 }, buttons: [{ t: 'زيد', cls: 'gold', v: 'ok' }, { t: 'إلغاء', v: null }] });
+      if (!a || a.v !== 'ok') return;
+      const mm = Math.max(0, Math.round((Number(a.text) || 0) * 1000));
+      const r = await sb.rpc('owner_add_stamp', { p_customer: x.id, p_amount: mm });
+      if (r.error) return toast('ما تزادتش. عاود جرّب');
+      toast(r.data.completed ? '🎉 تكمّلت الفيش! الرصيد: ' + fmtM(r.data.info.balance) : '✅ تزاد كاشي (' + r.data.info.stamps + '/10)');
+    } else if (d.v === 'rm') {
+      if (!(await askConfirm('نحّي كاشي', 'نحّي آخر كاشي من فيش ' + x.first_name + '؟', 'نحّي'))) return;
+      const r = await sb.rpc('owner_remove_stamp', { p_customer: x.id });
+      if (r.error) return toast(/aucune_case/.test(r.error.message) ? 'ما فما حتى كاشي في الفيش الحالية' : 'ما تنحّاش. عاود جرّب');
+      toast('تنحّى كاشي (' + r.data.info.stamps + '/10)');
+    }
+    lyRefresh();
+  }
 
   $('clO').onclick = showPending;
   $('clS').onclick = scan;

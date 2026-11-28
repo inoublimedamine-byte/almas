@@ -169,7 +169,7 @@ const money = n => (n / 1000).toFixed(3) + t('cur');
 // ===== Langue : عربي / Français =====
 const CAT_AR = {'Boisson chaude': 'مشروبات سخونة', 'Boisson froide': 'مشروبات باردة', 'Petit dej': 'فطور'};
 const L = {
-  ar: {loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ',
+  ar: {loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ', balance:'🎁 رصيدك الهدية: ', balanceHint:'يتخصّم من الحساب، قولّ للكاشي',
     auSub:'باش تطلب، ادخل لحسابك ولا اعمل حساب جديد', auHave:'عندي حساب', auNew:'حساب جديد', fPhone:'رقم التلفون (8 أرقام)', fPass:'كلمة السر', fPass2:'أعد كلمة السر',
     fFirst:'الإسم', fLast:'اللقب', fCin:'رقم بطاقة التعريف (اختياري)', guestBtn:'كمّل بلا حساب (ما تتحسبلكش بطاقة الوفاء)', guestInvite:'🎁 اعمل حساب مجاني باش تربح 5% كل 10 كوموندات', guestInviteBtn:'اعمل حساب', fDob:'تاريخ الولادة', consent:'نوافق على استعمال معلوماتي لبرنامج الوفاء فقط', auLogin:'دخول', auCreate:'تسجيل',
     badLogin:'الرقم أو كلمة السر غالطة', locked:'برشة محاولات. عاود بعد 5 دقايق', phoneUsed:'هذا الرقم عندو حساب. ادخل بيه.', badData:'تأكد من المعلومات اللي كتبتها', passDiff:'كلمتين السر موش كيف كيف', needConsent:'لازم توافق باش تعمل الحساب',
@@ -181,7 +181,7 @@ const L = {
     tooMany:'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.', sendFail:'ما تبعثتش الكوموند. عاود جرّب.', billFail:'ما تبعثش الطلب. عاود جرّب.',
     menuFail:'المنيو ما تحمّلش. عاود جرّب.', menuFail2:'المنيو ما تحمّلش. حدّث الصفحة.', confirmNew:'تخلّي هالكوموند وتبدا وحدة جديدة؟', cur:' د.ت', other:'FR',
     st:{nouvelle:'الكوموند وصلت، في الانتظار', acceptee:'قيد التحضير', servie:'تخدمت، بالصحة', payee:'خالصة، يعيشك', annulee:'الكوموند تلغات'}},
-  fr: {loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ',
+  fr: {loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ', balance:'🎁 Votre solde cadeau : ', balanceHint:"déduit de l'addition, demandez en caisse",
     auSub:'Pour commander, connectez-vous ou créez un compte', auHave:"J'ai un compte", auNew:'Créer un compte', fPhone:'Téléphone (8 chiffres)', fPass:'Mot de passe', fPass2:'Répétez le mot de passe',
     fFirst:'Prénom', fLast:'Nom', fCin:'N° de CIN (facultatif)', guestBtn:'Continuer sans compte (pas de carte de fidélité)', guestInvite:'🎁 Créez un compte gratuit pour gagner 5 % toutes les 10 commandes', guestInviteBtn:'Créer un compte', fDob:'Date de naissance', consent:"J'accepte que mes informations servent uniquement au programme de fidélité", auLogin:'Se connecter', auCreate:'Créer mon compte',
     badLogin:'Téléphone ou mot de passe incorrect', locked:'Trop de tentatives. Réessayez dans 5 minutes', phoneUsed:'Ce numéro a déjà un compte. Connectez-vous.', badData:'Vérifiez les informations saisies', passDiff:'Les mots de passe ne correspondent pas', needConsent:'Vous devez accepter pour créer un compte',
@@ -243,7 +243,7 @@ function paintCard() {
     const n = Math.min(10, Number(me.stamps) || 0), last = (me.cards || [])[0];
     h = `<div class="box lcard"><div class="lhead"><b>🎁 ${t('loyalTitle')}</b><span class="mute">${t('hello')}${safe(me.first)} · <a href="#" data-lo>${t('logout')}</a></span></div>
       <div class="stamps">${Array.from({length: 10}, (_, i) => `<span class="${i < n ? 'on' : ''}">${i < n ? '✓' : i + 1}</span>`).join('')}</div>
-      <div class="mute">${n}/10 · ${t('loyalInfo')}</div>${last ? `<div class="mute" style="margin-top:6px">${t('lastReward')}<b>${money(last.reward)}</b></div>` : ''}</div>`;
+      <div class="mute">${n}/10 · ${t('loyalInfo')}</div>${me.balance > 0 ? `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:#e8f3ec;color:var(--green);font-weight:800">${t('balance')}${money(me.balance)}<div class="mute" style="font-weight:400">${t('balanceHint')}</div></div>` : (last ? `<div class="mute" style="margin-top:6px">${t('lastReward')}<b>${money(last.reward)}</b></div>` : '')}</div>`;
   }
   else if (guest && !getTok()) h = `<div class="box lcard"><div>${t('guestInvite')}</div><button type="button" class="btn gold" data-reg style="margin-top:8px">${t('guestInviteBtn')}</button></div>`;
   ['lcM', 'lcO'].forEach(id => { const e = $(id); if (e) e.innerHTML = h; });
