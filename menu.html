@@ -133,6 +133,7 @@ html[dir=ltr] .cl .p{text-align:right}
         <button type="button" class="btn gold" id="auRegGo"></button>
       </div>
       <div class="err" id="auErr"></div>
+      <button type="button" class="btn light" id="auGuest" style="margin-top:12px"></button>
     </div>
   </section>
   <section id="vOrder" class="hide">
@@ -170,7 +171,7 @@ const CAT_AR = {'Boisson chaude': 'مشروبات سخونة', 'Boisson froide':
 const L = {
   ar: {loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ',
     auSub:'باش تطلب، ادخل لحسابك ولا اعمل حساب جديد', auHave:'عندي حساب', auNew:'حساب جديد', fPhone:'رقم التلفون (8 أرقام)', fPass:'كلمة السر', fPass2:'أعد كلمة السر',
-    fFirst:'الإسم', fLast:'اللقب', fCin:'رقم بطاقة التعريف (8 أرقام)', fDob:'تاريخ الولادة', consent:'نوافق على استعمال معلوماتي لبرنامج الوفاء فقط', auLogin:'دخول', auCreate:'تسجيل',
+    fFirst:'الإسم', fLast:'اللقب', fCin:'رقم بطاقة التعريف (اختياري)', guestBtn:'كمّل بلا حساب (ما تتحسبلكش بطاقة الوفاء)', guestInvite:'🎁 اعمل حساب مجاني باش تربح 5% كل 10 كوموندات', guestInviteBtn:'اعمل حساب', fDob:'تاريخ الولادة', consent:'نوافق على استعمال معلوماتي لبرنامج الوفاء فقط', auLogin:'دخول', auCreate:'تسجيل',
     badLogin:'الرقم أو كلمة السر غالطة', locked:'برشة محاولات. عاود بعد 5 دقايق', phoneUsed:'هذا الرقم عندو حساب. ادخل بيه.', badData:'تأكد من المعلومات اللي كتبتها', passDiff:'كلمتين السر موش كيف كيف', needConsent:'لازم توافق باش تعمل الحساب',
     menu:'المنيو', scan:'امسح الـQR الموجود على الطاولة', hint:'👆 إنزل على التصويرة باش تزيد للكوموند', note:'ملاحظة (اختياري)، مثلا: بلا سكر',
     send:'ابعث الكوموند', back:'رجوع للكوموندات', yourOrder:'🧾 كوموندك', total:'المجموع', bill:'اطلب الحساب', addOrder:'زيد كوموند',
@@ -182,7 +183,7 @@ const L = {
     st:{nouvelle:'الكوموند وصلت، في الانتظار', acceptee:'قيد التحضير', servie:'تخدمت، بالصحة', payee:'خالصة، يعيشك', annulee:'الكوموند تلغات'}},
   fr: {loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ',
     auSub:'Pour commander, connectez-vous ou créez un compte', auHave:"J'ai un compte", auNew:'Créer un compte', fPhone:'Téléphone (8 chiffres)', fPass:'Mot de passe', fPass2:'Répétez le mot de passe',
-    fFirst:'Prénom', fLast:'Nom', fCin:'N° de CIN (8 chiffres)', fDob:'Date de naissance', consent:"J'accepte que mes informations servent uniquement au programme de fidélité", auLogin:'Se connecter', auCreate:'Créer mon compte',
+    fFirst:'Prénom', fLast:'Nom', fCin:'N° de CIN (facultatif)', guestBtn:'Continuer sans compte (pas de carte de fidélité)', guestInvite:'🎁 Créez un compte gratuit pour gagner 5 % toutes les 10 commandes', guestInviteBtn:'Créer un compte', fDob:'Date de naissance', consent:"J'accepte que mes informations servent uniquement au programme de fidélité", auLogin:'Se connecter', auCreate:'Créer mon compte',
     badLogin:'Téléphone ou mot de passe incorrect', locked:'Trop de tentatives. Réessayez dans 5 minutes', phoneUsed:'Ce numéro a déjà un compte. Connectez-vous.', badData:'Vérifiez les informations saisies', passDiff:'Les mots de passe ne correspondent pas', needConsent:'Vous devez accepter pour créer un compte',
     menu:'Menu', scan:'Scannez le QR code sur la table', hint:'👆 Touchez la photo pour ajouter à la commande', note:'Remarque (facultatif), ex. sans sucre',
     send:'Envoyer la commande', back:'Retour aux commandes', yourOrder:'🧾 Votre commande', total:'Total', bill:"Demander l'addition", addOrder:'Ajouter une commande',
@@ -223,7 +224,9 @@ const rpc = (fn, body) => api('rpc/' + fn, {method: 'POST', body: JSON.stringify
 
 // ===== Fidélité : compte client (téléphone + mot de passe) + fiche de 10 cases =====
 const CK = 'almas_cust';
-let cust = null, auTab = 'login', lastPaid = 0;
+let cust = null, auTab = 'login', lastPaid = 0, guest = false;   // guest = mode passager (sans compte), valable pour cette visite
+try { guest = sessionStorage.getItem('almas_guest') === '1'; } catch (_) {}
+const setGuest = v => { guest = v; try { v ? sessionStorage.setItem('almas_guest', '1') : sessionStorage.removeItem('almas_guest'); } catch (_) {} };
 const getTok = () => { try { return localStorage.getItem(CK) || ''; } catch (_) { return ''; } };
 const setTok = v => { try { v ? localStorage.setItem(CK, v) : localStorage.removeItem(CK); } catch (_) {} };
 const digits8 = s => String(s || '').replace(/\D/g, '').slice(-8);
@@ -242,8 +245,13 @@ function paintCard() {
       <div class="stamps">${Array.from({length: 10}, (_, i) => `<span class="${i < n ? 'on' : ''}">${i < n ? '✓' : i + 1}</span>`).join('')}</div>
       <div class="mute">${n}/10 · ${t('loyalInfo')}</div>${last ? `<div class="mute" style="margin-top:6px">${t('lastReward')}<b>${money(last.reward)}</b></div>` : ''}</div>`;
   }
+  else if (guest && !getTok()) h = `<div class="box lcard"><div>${t('guestInvite')}</div><button type="button" class="btn gold" data-reg style="margin-top:8px">${t('guestInviteBtn')}</button></div>`;
   ['lcM', 'lcO'].forEach(id => { const e = $(id); if (e) e.innerHTML = h; });
 }
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-reg]')) return;
+  setGuest(false); auTab = 'reg'; showAuth();
+});
 document.addEventListener('click', async e => {
   if (!e.target.closest('[data-lo]')) return;
   e.preventDefault();
@@ -257,6 +265,7 @@ function paintAuth() {
   $('auLogin').classList.toggle('hide', auTab !== 'login'); $('auReg').classList.toggle('hide', auTab !== 'reg');
   $('alP').placeholder = t('fPhone'); $('alW').placeholder = t('fPass'); $('auLoginGo').textContent = t('auLogin');
   $('arF').placeholder = t('fFirst'); $('arL').placeholder = t('fLast'); $('arP').placeholder = t('fPhone'); $('arC').placeholder = t('fCin');
+  $('auGuest').textContent = t('guestBtn');
   $('arDl').textContent = t('fDob'); $('arW').placeholder = t('fPass'); $('arW2').placeholder = t('fPass2'); $('arOkT').textContent = t('consent'); $('auRegGo').textContent = t('auCreate');
   $('auErr').textContent = '';
 }
@@ -265,7 +274,8 @@ function showAuth() {
   $('vMenu').classList.add('hide'); $('vOrder').classList.add('hide'); $('bar').classList.add('hide'); $('vAuth').classList.remove('hide');
   paintAuth();
 }
-async function authDone(tok) { setTok(tok); await loadMe(); $('vAuth').classList.add('hide'); openMenu(); }
+$('auGuest').onclick = () => { setGuest(true); $('vAuth').classList.add('hide'); openMenu(); };
+async function authDone(tok) { setTok(tok); setGuest(false); await loadMe(); $('vAuth').classList.add('hide'); openMenu(); }
 $('auTL').onclick = () => { auTab = 'login'; paintAuth(); };
 $('auTR').onclick = () => { auTab = 'reg'; paintAuth(); };
 $('auLoginGo').onclick = async () => {
@@ -282,12 +292,12 @@ $('auLoginGo').onclick = async () => {
 $('auRegGo').onclick = async () => {
   const er = $('auErr'), f = $('arF').value.trim(), l = $('arL').value.trim(), ph = digits8($('arP').value),
     cin = $('arC').value.replace(/\D/g, ''), dob = $('arD').value, pw = $('arW').value; er.textContent = '';
-  if (f.length < 2 || l.length < 2 || ph.length !== 8 || cin.length !== 8 || !dob || pw.length < 4) return er.textContent = t('badData');
+  if (f.length < 2 || l.length < 2 || ph.length !== 8 || (cin && cin.length !== 8) || !dob || pw.length < 4) return er.textContent = t('badData');
   if (pw !== $('arW2').value) return er.textContent = t('passDiff');
   if (!$('arOk').checked) return er.textContent = t('needConsent');
   $('auRegGo').disabled = true;
   try {
-    const r = await rpc('customer_register', {p_first: f, p_last: l, p_phone: ph, p_cin: cin, p_dob: dob, p_pass: pw});
+    const r = await rpc('customer_register', {p_first: f, p_last: l, p_phone: ph, p_cin: cin || null, p_dob: dob, p_pass: pw});
     if (r && r.ok) { $('arW').value = ''; $('arW2').value = ''; await authDone(r.token); return; }
     er.textContent = t('badData');
   } catch (e) {
@@ -440,7 +450,7 @@ $('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.statu
 
 async function openMenu() {
   if (!cust) await loadMe();
-  if (!getTok()) { showAuth(); return; }                // pas de compte : on demande de se connecter ou de créer un compte
+  if (!getTok() && !guest) { showAuth(); return; }              // pas de compte : on demande de se connecter ou de créer un compte
   if (!items.length) {
     try {
       try { try { items = await api('menu_items?select=id,name,name_fr,price_millimes,category,image_url,description&available=eq.true&order=sort'); } catch (_0) { items = await api('menu_items?select=id,name,price_millimes,category,image_url,description&available=eq.true&order=sort'); } }
