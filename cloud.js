@@ -218,6 +218,20 @@
     db = n; normDb(); persist(); toast('تم الاسترجاع');
   };
 
+  // --- Livraison aux bureaux : la note « 🏢 lieu | nom » devient le nom du ticket (ex. « 🏢 Ahmed — RDC — مكاتب الاستخلاص ») ---
+  let LAB = {};
+  try { LAB = JSON.parse(localStorage.getItem('almas_labels') || '{}') || {}; } catch (_) {}
+  const parseDeliv = note => { const m = /^🏢 (.+?) \| (.+?)(?:\n([\s\S]*))?$/.exec(note || ''); return m ? { place: m[1], name: m[2], rest: (m[3] || '').trim() } : null; };
+  function regLabel(o) {   // enregistre (ou efface) le nom du ticket à emporter n° o.table_no
+    if (!o || !(o.table_no >= 100)) return null;
+    const d = parseDeliv(o.note);
+    if (d) LAB[o.table_no] = '🏢 ' + d.name + ' — ' + d.place; else delete LAB[o.table_no];
+    try { localStorage.setItem('almas_labels', JSON.stringify(LAB)); } catch (_) {}
+    return d;
+  }
+  const tl0 = tl;
+  tl = function (id) { const t = db && db.tables && db.tables.find(x => x.id === id); return (t && t.label) || (id >= 100 && LAB[id]) || tl0(id); };
+
   // --- Commandes clients en direct ---
   async function refreshPending() {
     if (!user) return;
@@ -229,7 +243,7 @@
     if (ch) return;
     ch = sb.channel('almas-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, p => {
       const n = p.new || {};
-      if (p.eventType === 'INSERT') { beep(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
+      if (p.eventType === 'INSERT') { regLabel(n); beep(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
       else if (p.eventType === 'UPDATE' && n.bill_requested && !(p.old && p.old.bill_requested)) { beep(); toast('🧾 ' + tl(n.table_no) + ' تطلب الحساب'); }
       refreshPending();
     }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'loyalty_cards' }, p => {
@@ -245,7 +259,8 @@
     if (r.error) return toast('ما تحمّلتش الكوموندات');
     if (!r.data.length) return toast('ما فماش كوموندات جدّد');
     for (const o of r.data) {
-      const txt = o.order_lines.map(l => l.name + ' × ' + l.qty).join('\n') + (o.note ? '\n📝 ' + o.note : '') + '\n\n' + money(o.total_millimes / 1000);
+      const dv = regLabel(o), nt = dv ? dv.rest : o.note;
+      const txt = o.order_lines.map(l => l.name + ' × ' + l.qty).join('\n') + (nt ? '\n📝 ' + nt : '') + '\n\n' + money(o.total_millimes / 1000);
       const d = await dlg({ title: '📲 ' + tl(o.table_no), msg: txt, buttons: [{ t: 'قبول وزيد للطاولة', cls: 'gold', v: 'ok' }, { t: 'رفض', v: 'no' }, { t: 'بعد', v: null }] });
       if (!d || d.v == null) break;
       const st = d.v === 'ok' ? 'acceptee' : 'annulee';
@@ -254,7 +269,7 @@
       if (u.error || !u.data.length) continue;
       if (d.v === 'ok') {
         let t = db.tables.find(x => x.id === o.table_no);
-        if (!t && o.table_no >= 100) { t = { id: o.table_no, items: [], takeaway: true }; db.tables.push(t); } // ticket à emporter
+        if (!t && o.table_no >= 100) { t = { id: o.table_no, items: [], takeaway: true, label: LAB[o.table_no] }; db.tables.push(t); } // ticket à emporter
         if (!t) { toast('طاولة ' + o.table_no + ' موش موجودة في التطبيق'); continue; }
         if (!t.items.length) t.since = Date.now();
         o.order_lines.forEach(l => {

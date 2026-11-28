@@ -102,6 +102,7 @@ html[dir=ltr] .cl .p{text-align:right}
 <main>
   <section id="vMenu">
     <div id="lcM"></div>
+    <div class="hint hide" id="dvEditLn" style="margin:0 0 8px"><a href="#" id="dvEdit" style="color:var(--brown);font-weight:700"></a></div>
     <div class="box cartbox hide" id="cartBox"></div>
     <div class="cats" id="cats"></div>
     <div class="hint" id="hint">👆 إنزل على التصويرة باش تزيد للكوموند</div>
@@ -109,6 +110,17 @@ html[dir=ltr] .cl .p{text-align:right}
     <textarea id="note" rows="2" maxlength="200" placeholder="ملاحظة (اختياري)، مثلا: بلا سكر"></textarea>
     <div class="err" id="err"></div>
     <button class="btn light hide" id="bBack" style="margin-top:8px">رجوع للكوموندات</button>
+  </section>
+  <section id="vDeliv" class="hide auth">
+    <div class="box" style="text-align:start">
+      <div class="st" id="dvTitle"></div>
+      <div class="mute" id="dvSub"></div>
+      <input class="field" id="dvN" maxlength="40" autocomplete="name" style="margin-top:12px">
+      <select class="field" id="dvP"></select>
+      <input class="field" id="dvD" maxlength="40">
+      <div class="err" id="dvErr"></div>
+      <button type="button" class="btn gold" id="dvGo"></button>
+    </div>
   </section>
   <section id="vAuth" class="hide auth">
     <div class="box" style="text-align:start">
@@ -159,7 +171,17 @@ html[dir=ltr] .cl .p{text-align:right}
 // ===== À CONFIGURER =====
 const SB_URL = 'https://rxgjfaolfznnvkqzounv.supabase.co';
 const SB_KEY = 'sb_publishable__mkqYHMSQgU0JDZH5PahKw_ugMLqOLz';      // clé "anon" uniquement, JAMAIS la clé service_role
-const OWNER_WA = '21624888838';       // numéro WhatsApp du patron, sans + ni espaces
+const OWNER_WA = '21624888838';
+// Livraison aux bureaux : QR  menu.html?bureau=steg&k=...   (lieux à adapter, un par ligne)
+const BUREAUX = {
+  steg: { name: 'STEG', places: [
+    'RDC — مكاتب الاستخلاص',
+    'RDC — الاستقبال',
+    'الطابق 1 — (اكتب اسم المكاتب)',
+    'الطابق 2 — (اكتب اسم المكاتب)',
+    'الطابق 3 — (اكتب اسم المكاتب)'
+  ] }
+};       // numéro WhatsApp du patron, sans + ni espaces
 // ========================
 
 const $ = id => document.getElementById(id);
@@ -169,7 +191,8 @@ const money = n => (n / 1000).toFixed(3) + t('cur');
 // ===== Langue : عربي / Français =====
 const CAT_AR = {'Boisson chaude': 'مشروبات سخونة', 'Boisson froide': 'مشروبات باردة', 'Petit dej': 'فطور'};
 const L = {
-  ar: {loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ', balance:'🎁 رصيدك الهدية: ', balanceHint:'يتخصّم من الحساب، قولّ للكاشي',
+  ar: {dvTitle:'🏢 معلومات التوصيل', dvSub:'باش نوصلولك الكوموند لمكتبك', dvName:'الإسم و اللقب', dvPick:'اختار وين انتي (الطابق / المكاتب)', dvDetail:'رقم المكتب أو تفاصيل (اختياري)', dvGo:'كمّل للمنيو', dvNeed:'اكتب الإسم و اختار وين انتي', dvEdit:'✏️ بدّل معلوماتي', dvOrders:'كوموندات التوصيل',
+    loyalTitle:'بطاقة الوفاء', loyalInfo:'كي تكمّل 10 كوموندات تربح 5% من المبلغ الكل', hello:'مرحبا ', logout:'خروج', lastReward:'🏆 آخر مكافأة: ', balance:'🎁 رصيدك الهدية: ', balanceHint:'يتخصّم من الحساب، قولّ للكاشي',
     auSub:'باش تطلب، ادخل لحسابك ولا اعمل حساب جديد', auHave:'عندي حساب', auNew:'حساب جديد', fPhone:'رقم التلفون (8 أرقام)', fPass:'كلمة السر', fPass2:'أعد كلمة السر',
     fFirst:'الإسم', fLast:'اللقب', fCin:'رقم بطاقة التعريف (اختياري)', guestBtn:'كمّل بلا حساب (ما تتحسبلكش بطاقة الوفاء)', guestInvite:'🎁 اعمل حساب مجاني باش تربح 5% كل 10 كوموندات', guestInviteBtn:'اعمل حساب', fDob:'تاريخ الولادة', consent:'نوافق على استعمال معلوماتي لبرنامج الوفاء فقط', auLogin:'دخول', auCreate:'تسجيل',
     badLogin:'الرقم أو كلمة السر غالطة', locked:'برشة محاولات. عاود بعد 5 دقايق', phoneUsed:'هذا الرقم عندو حساب. ادخل بيه.', badData:'تأكد من المعلومات اللي كتبتها', passDiff:'كلمتين السر موش كيف كيف', needConsent:'لازم توافق باش تعمل الحساب',
@@ -181,7 +204,8 @@ const L = {
     tooMany:'فما برشة كوموندات في الانتظار على هالطاولة. نادي النادل.', sendFail:'ما تبعثتش الكوموند. عاود جرّب.', billFail:'ما تبعثش الطلب. عاود جرّب.',
     menuFail:'المنيو ما تحمّلش. عاود جرّب.', menuFail2:'المنيو ما تحمّلش. حدّث الصفحة.', confirmNew:'تخلّي هالكوموند وتبدا وحدة جديدة؟', cur:' د.ت', other:'FR',
     st:{nouvelle:'الكوموند وصلت، في الانتظار', acceptee:'قيد التحضير', servie:'تخدمت، بالصحة', payee:'خالصة، يعيشك', annulee:'الكوموند تلغات'}},
-  fr: {loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ', balance:'🎁 Votre solde cadeau : ', balanceHint:"déduit de l'addition, demandez en caisse",
+  fr: {dvTitle:'🏢 Infos de livraison', dvSub:'Pour vous livrer à votre bureau', dvName:'Nom et prénom', dvPick:'Choisissez votre étage / service', dvDetail:'N° de bureau ou précisions (facultatif)', dvGo:'Continuer vers le menu', dvNeed:'Saisissez votre nom et choisissez votre emplacement', dvEdit:'✏️ Modifier mes infos', dvOrders:'Commandes à livrer',
+    loyalTitle:'Carte de fidélité', loyalInfo:'À la 10e commande payée, vous gagnez 5 % du total dépensé', hello:'Bonjour ', logout:'Déconnexion', lastReward:'🏆 Dernière récompense : ', balance:'🎁 Votre solde cadeau : ', balanceHint:"déduit de l'addition, demandez en caisse",
     auSub:'Pour commander, connectez-vous ou créez un compte', auHave:"J'ai un compte", auNew:'Créer un compte', fPhone:'Téléphone (8 chiffres)', fPass:'Mot de passe', fPass2:'Répétez le mot de passe',
     fFirst:'Prénom', fLast:'Nom', fCin:'N° de CIN (facultatif)', guestBtn:'Continuer sans compte (pas de carte de fidélité)', guestInvite:'🎁 Créez un compte gratuit pour gagner 5 % toutes les 10 commandes', guestInviteBtn:'Créer un compte', fDob:'Date de naissance', consent:"J'accepte que mes informations servent uniquement au programme de fidélité", auLogin:'Se connecter', auCreate:'Créer mon compte',
     badLogin:'Téléphone ou mot de passe incorrect', locked:'Trop de tentatives. Réessayez dans 5 minutes', phoneUsed:'Ce numéro a déjà un compte. Connectez-vous.', badData:'Vérifiez les informations saisies', passDiff:'Les mots de passe ne correspondent pas', needConsent:'Vous devez accepter pour créer un compte',
@@ -202,14 +226,16 @@ let scanMode = false;
 let tableNo = parseInt(new URLSearchParams(location.search).get('table'), 10);
 const qs = new URLSearchParams(location.search);
 const qkey = qs.get('k') || '';                              // clé secrète du QR (vérifiée côté serveur)
-const takeaway = qs.get('emporter') === '1';                 // QR « à emporter » : ?table=N&emporter=1
-const TK = 'almas_take_no';
+const bureau = qs.get('bureau') ? (BUREAUX[qs.get('bureau')] || {name: '', places: []}) : null;   // QR « bureaux » : livraison, sans fidélité
+const takeaway = qs.get('emporter') === '1' || !!bureau;                 // QR « à emporter » : ?table=N&emporter=1
+const TK = bureau ? 'almas_bureau_no' : 'almas_take_no';
+let dv = null; try { dv = JSON.parse(localStorage.getItem('almas_bureau_info') || 'null'); } catch (_) {}   // nom + lieu mémorisés
 if (takeaway) {   // le numéro de ticket est attribué par le serveur à la 1re commande
   tableNo = 0; try { tableNo = parseInt(localStorage.getItem(TK), 10) || 0; } catch (_) {}
 }
-const tableLabel = () => takeaway ? t('take') + (tableNo ? t('num') + tableNo : '') : t('table') + tableNo;
+const tableLabel = () => bureau ? '🏢 ' + (dv ? dv.n + ' — ' + dv.p : bureau.name) : takeaway ? t('take') + (tableNo ? t('num') + tableNo : '') : t('table') + tableNo;
 const tableLabelAr = () => takeaway ? (tableNo ? '🥡 للخارج · رقم ' + tableNo : '🥡 للخارج') : 'طاولة ' + tableNo;   // message WhatsApp du patron : toujours en arabe
-const LS = takeaway ? 'almas_order_take' : 'almas_order_' + tableNo;
+const LS = takeaway ? (bureau ? 'almas_order_bureau' : 'almas_order_take') : 'almas_order_' + tableNo;
 const H = {apikey: SB_KEY, 'Content-Type': 'application/json'};
 if (SB_KEY.startsWith('eyJ')) H.Authorization = 'Bearer ' + SB_KEY; // ancienne clé JWT seulement
 const STATUS = new Proxy({}, {get: (_, k) => t('st')[k]});
@@ -237,7 +263,7 @@ async function loadMe() {
   return cust && cust.me;
 }
 function paintCard() {
-  const me = cust && cust.me;
+  const me = !bureau && cust && cust.me;
   let h = '';
   if (me) {
     const n = Math.min(10, Number(me.stamps) || 0), last = (me.cards || [])[0];
@@ -245,7 +271,7 @@ function paintCard() {
       <div class="stamps">${Array.from({length: 10}, (_, i) => `<span class="${i < n ? 'on' : ''}">${i < n ? '✓' : i + 1}</span>`).join('')}</div>
       <div class="mute">${n}/10 · ${t('loyalInfo')}</div>${me.balance > 0 ? `<div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:#e8f3ec;color:var(--green);font-weight:800">${t('balance')}${money(me.balance)}<div class="mute" style="font-weight:400">${t('balanceHint')}</div></div>` : (last ? `<div class="mute" style="margin-top:6px">${t('lastReward')}<b>${money(last.reward)}</b></div>` : '')}</div>`;
   }
-  else if (guest && !getTok()) h = `<div class="box lcard"><div>${t('guestInvite')}</div><button type="button" class="btn gold" data-reg style="margin-top:8px">${t('guestInviteBtn')}</button></div>`;
+  else if (!bureau && guest && !getTok()) h = `<div class="box lcard"><div>${t('guestInvite')}</div><button type="button" class="btn gold" data-reg style="margin-top:8px">${t('guestInviteBtn')}</button></div>`;
   ['lcM', 'lcO'].forEach(id => { const e = $(id); if (e) e.innerHTML = h; });
 }
 document.addEventListener('click', e => {
@@ -306,7 +332,7 @@ $('auRegGo').onclick = async () => {
 };
 // rattache chaque commande au client connecté (la case se coche côté serveur quand la table est payée)
 async function linkOrders() {
-  const tk = getTok(); if (!tk) return;
+  const tk = getTok(); if (!tk || bureau) return;
   for (const o of orders) {
     if (o.linked || o.status === 'annulee') continue;
     try { await rpc('customer_link_order', {p_token: tk, p_order: o.id}); o.linked = true; }
@@ -358,6 +384,12 @@ $('cartBox').onclick = e => {
   refresh();
 };
 
+// Note envoyée au serveur : pour les bureaux « 🏢 lieu — détail | nom » (lue par la caisse pour nommer le ticket)
+const noteFor = () => {
+  const nt = $('note').value.trim();
+  if (bureau && dv) return ('🏢 ' + dv.p + (dv.d ? ' — ' + dv.d : '') + ' | ' + dv.n + (nt ? '\n' + nt : '')).slice(0, 300);
+  return ((takeaway ? '🥡 EMPORTER ' : '') + nt).trim() || null;
+};
 $('bSend').onclick = async () => {
   $('err').textContent = '';
   $('bSend').disabled = true;
@@ -367,7 +399,7 @@ $('bSend').onclick = async () => {
       p_table: takeaway ? 0 : tableNo,
       p_key: qkey,
       p_items: Object.entries(cart).map(([id, qty]) => ({id, qty})),
-      p_note: ((takeaway ? '🥡 EMPORTER ' : '') + $('note').value.trim()).trim() || null
+      p_note: noteFor()
     });
     if (takeaway) { tableNo = res[0].o_table; try { localStorage.setItem(TK, tableNo); } catch (_) {} }
     orders.push({id: res[0].o_id, total: res[0].o_total, lines, status: 'nouvelle', bill: false, t: Date.now()});
@@ -394,13 +426,13 @@ function paint() {
   const open = live.filter(o => o.status !== 'payee');
   const done = !open.length;
   const asked = open.length > 0 && open.every(o => o.bill);
-  $('oStatus').textContent = done ? (live.length ? STATUS.payee : STATUS.annulee) : (asked ? t('billReady') : t('tableOrders'));
+  $('oStatus').textContent = done ? (live.length ? STATUS.payee : STATUS.annulee) : (asked ? t('billReady') : bureau ? t('dvOrders') : t('tableOrders'));
   $('oLines').innerHTML = orders.map((o, i) =>
     `<div class="mute" style="margin:12px 4px 6px">${t('orderN')}${i + 1} — ${safe(STATUS[o.status] || o.status)}</div>` +
     o.lines.map(l => `<div class="line"${o.status === 'annulee' ? ' style="opacity:.45"' : ''}><div class="nm"><b>${safe(lang === 'fr' && l.nameFr ? l.nameFr : l.name)}</b><small>${money(l.price)}</small></div><b>× ${l.qty}</b></div>`).join('')
   ).join('');
   $('oTotal').textContent = money(live.reduce((s, o) => s + o.total, 0));
-  $('bBill').classList.toggle('hide', done || asked);
+  $('bBill').classList.toggle('hide', done || asked || !!bureau);
   $('bAdd').classList.toggle('hide', done || asked);
   $('bNew').classList.toggle('hide', !(done || takeaway));
   $('bNew').textContent = done ? t('newOrder') : t('newOrder2');
@@ -436,7 +468,7 @@ async function syncStatuses() {
 async function poll() {
   await linkOrders(); await syncStatuses();
   const paid = orders.filter(o => o.status === 'payee').length;
-  if (paid !== lastPaid) { lastPaid = paid; await loadMe(); paintCard(); }   // une commande vient d'être payée : la case est cochée
+  if (paid !== lastPaid) { lastPaid = paid; if (!bureau) await loadMe(); paintCard(); }   // une commande vient d'être payée : la case est cochée
   paint();
 }
 
@@ -448,9 +480,34 @@ $('bBill').onclick = async () => {
 };
 $('bNew').onclick = () => { if (orders.some(o => o.status !== 'payee' && o.status !== 'annulee') && !confirm(t('confirmNew'))) return; orders = []; saveOrders(); if (takeaway) { try { localStorage.removeItem(TK); } catch (_) {} } location.reload(); };
 
+// ===== Livraison aux bureaux : nom + emplacement (mémorisés sur le téléphone du client) =====
+function paintDv() {
+  if (!bureau) return;
+  $('dvTitle').textContent = t('dvTitle');
+  $('dvSub').textContent = (bureau.name ? '🏢 ' + bureau.name + ' — ' : '') + t('dvSub');
+  $('dvN').placeholder = t('dvName'); $('dvD').placeholder = t('dvDetail'); $('dvGo').textContent = t('dvGo');
+  $('dvP').innerHTML = '<option value="">' + safe(t('dvPick')) + '</option>' + bureau.places.map(p => '<option' + (dv && dv.p === p ? ' selected' : '') + '>' + safe(p) + '</option>').join('');
+  $('dvEdit').textContent = t('dvEdit'); $('dvEditLn').classList.toggle('hide', !dv);
+}
+function showDeliv() {
+  clearInterval(timer);
+  ['vMenu', 'vOrder', 'vAuth', 'bar'].forEach(id => $(id).classList.add('hide'));
+  $('vDeliv').classList.remove('hide');
+  paintDv(); $('dvN').value = dv ? dv.n : ''; $('dvD').value = dv && dv.d || ''; $('dvErr').textContent = '';
+}
+$('dvEdit').onclick = e => { e.preventDefault(); showDeliv(); };
+$('dvGo').onclick = () => {
+  const n = $('dvN').value.trim(), p = $('dvP').value, d = $('dvD').value.trim();
+  if (n.length < 2 || !p) { $('dvErr').textContent = t('dvNeed'); return; }
+  dv = {n: n.replace(/\|/g, '/'), p, d: d.replace(/\|/g, '/')};
+  try { localStorage.setItem('almas_bureau_info', JSON.stringify(dv)); } catch (_) {}
+  $('vDeliv').classList.add('hide'); $('hd').textContent = tableLabel(); openMenu();
+};
+
 async function openMenu() {
-  if (!cust) await loadMe();
-  if (!getTok() && !guest) { showAuth(); return; }              // pas de compte : on demande de se connecter ou de créer un compte
+  if (!bureau && !cust) await loadMe();
+  if (bureau && !dv) { showDeliv(); return; }
+  if (!bureau && !getTok() && !guest) { showAuth(); return; }              // pas de compte : on demande de se connecter ou de créer un compte
   if (!items.length) {
     try {
       try { try { items = await api('menu_items?select=id,name,name_fr,price_millimes,category,image_url,description&available=eq.true&order=sort'); } catch (_0) { items = await api('menu_items?select=id,name,price_millimes,category,image_url,description&available=eq.true&order=sort'); } }
@@ -464,7 +521,7 @@ async function openMenu() {
   clearInterval(timer);
   $('vOrder').classList.add('hide'); $('vMenu').classList.remove('hide'); $('bar').classList.remove('hide');
   $('bBack').classList.toggle('hide', !orders.length);
-  paintCard();
+  paintCard(); paintDv();
   renderMenu();
 }
 $('bAdd').onclick = openMenu;
@@ -475,7 +532,7 @@ function applyLang() {
   document.documentElement.lang = lang; document.documentElement.dir = lang === 'fr' ? 'ltr' : 'rtl';
   $('lang').textContent = t('other'); $('hint').textContent = t('hint'); $('note').placeholder = t('note');
   $('bBack').textContent = t('back'); $('bAdd').textContent = t('addOrder'); $('bBill').textContent = t('bill');
-  paintCard(); if (!$('vAuth').classList.contains('hide')) paintAuth();
+  paintCard(); paintDv(); if (!$('vAuth').classList.contains('hide')) paintAuth();
   $('oTotLbl').textContent = t('total'); $('bbTitle').textContent = t('billReady'); $('bbHint').textContent = t('showCode'); $('wa').textContent = t('wa');
   if (scanMode) $('hd').textContent = t('scan'); else if (takeaway || tableNo) $('hd').textContent = tableLabel(); else $('hd').textContent = t('menu');
   if (!$('vMenu').classList.contains('hide') && items.length) renderMenu(); else refresh();
@@ -496,7 +553,7 @@ $('lang').onclick = () => { lang = lang === 'fr' ? 'ar' : 'fr'; try { localStora
     if (takeaway) { tableNo = 0; try { localStorage.removeItem(TK); } catch (_) {} }
   }
   $('hd').textContent = tableLabel();
-  if (getTok()) await loadMe();
+  if (!bureau && getTok()) await loadMe();
   if (orders.length) showOrder(); else openMenu();
 })();
 </script>
