@@ -76,6 +76,30 @@
     '<button class="btn light hide" id="clBk">☁️ احفظ نسخة احتياطية توّا</button>' +
     '<button class="btn light hide" id="clRs">↩️ استرجاع نسخة من السحاب</button></div>');
 
+  // --- Notifications Push (téléphone verrouillé / app fermée) ---
+  const VAPID_PUB = 'BMg9PFxVTZ0BJ2uD1ots1KnXyxKPvSyrTdxkGM82kc3PUqsPu97We5VC56CtZNc4WmhmNz13VtT8SZhsWaLVeqA';   // clé PUBLIQUE (la privée reste dans les secrets Supabase)
+  $('clBk').insertAdjacentHTML('afterend', '<button class="btn light hide" id="clPn">🔔 فعّل إشعارات الكوموندات</button>');
+  const b64u = s => { const r = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+  async function enablePush(silent) {
+    if (!user) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window))
+      return silent || toast('هالمتصفح ما يدعمش الإشعارات (iPhone: زيد التطبيق للشاشة الرئيسية الأول)');
+    try {
+      if (Notification.permission !== 'granted') {
+        if (silent) return;
+        if (await Notification.requestPermission() !== 'granted') return toast('الإشعارات مرفوضة. فعّلها من إعدادات الموقع في المتصفح');
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUB) });
+      const j = sub.toJSON();
+      const r = await sb.from('push_subs').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: user.id, ua: navigator.userAgent.slice(0, 120) }, { onConflict: 'endpoint' });
+      if (r.error) return silent || toast('ما تسجّلتش. شغّل push.sql في Supabase');
+      $('clPn').textContent = '🔔 الإشعارات شغّالة ✅';
+      silent || toast('🔔 الإشعارات تفعّلت على هالتليفون');
+    } catch (e) { silent || toast('ما تفعّلتش الإشعارات: ' + (e.message || e)); }
+  }
+  $('clPn').onclick = () => enablePush(false);
+
   // --- Connexion mémorisée : session persistante + reconnexion automatique si elle saute ---
   const CRED = 'almas_cl_cred';
   let manualOut = false;
@@ -115,8 +139,9 @@
     $('clIn').classList.toggle('hide', !!u);
     $('clBk').classList.toggle('hide', !u);
     $('clRs').classList.toggle('hide', !u);
+    $('clPn').classList.toggle('hide', !u);
     $('clInfo').textContent = u ? 'متصل: ' + u.email + ' (cloud v2)' : 'موش متصل (cloud v2)';
-    if (u) { listen(); refreshPending(); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
+    if (u) { listen(); refreshPending(); enablePush(true); syncMenu(true); setTimeout(() => cloudBackup(false), 8000); }
     else if (ch) { sb.removeChannel(ch); ch = null; }
   }
   sb.auth.onAuthStateChange((_e, s) => { onUser(s && s.user); if (_e === 'SIGNED_OUT' && !manualOut) setTimeout(() => autoRelogin(), 500); });
