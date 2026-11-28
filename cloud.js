@@ -56,6 +56,11 @@
     } catch (e) {}
   };
 
+  // --- Sonnerie des commandes QR : bell.mp3 (cloche de boxe). Débloquée au premier clic ; sinon bip de secours ---
+  const bell = new Audio('bell.mp3'); bell.preload = 'auto';
+  document.addEventListener('click', () => { try { bell.muted = true; const pr = bell.play(); if (pr && pr.then) pr.then(() => { bell.pause(); bell.currentTime = 0; bell.muted = false; }).catch(() => { bell.muted = false; }); } catch (_) {} }, { once: true });
+  const ring = () => { try { bell.muted = false; bell.currentTime = 0; const pr = bell.play(); if (pr && pr.catch) pr.catch(() => beep()); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (_) { beep(); } };
+
   // --- Interface : boutons flottants + panneau de connexion dans Réglages ---
   document.head.insertAdjacentHTML('beforeend', '<style>header .wrap{flex-wrap:wrap;row-gap:10px}header .hleft{width:100%;align-items:stretch}header .hact{width:100%}header .hact .hbtn{flex:1;min-width:0;min-height:64px;justify-content:center}header .hbtn i{font-size:24px}header .hbtn em{font-size:11px;white-space:nowrap}</style>');
   document.querySelector('header .hact').insertAdjacentHTML('beforeend',
@@ -243,7 +248,7 @@
     if (ch) return;
     ch = sb.channel('almas-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, p => {
       const n = p.new || {};
-      if (p.eventType === 'INSERT') { regLabel(n); beep(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
+      if (p.eventType === 'INSERT') { regLabel(n); ring(); toast('📲 كوموند جديدة — ' + tl(n.table_no)); }
       else if (p.eventType === 'UPDATE' && n.bill_requested && !(p.old && p.old.bill_requested)) { beep(); toast('🧾 ' + tl(n.table_no) + ' تطلب الحساب'); }
       refreshPending();
     }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'loyalty_cards' }, p => {

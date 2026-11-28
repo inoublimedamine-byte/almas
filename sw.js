@@ -1,5 +1,5 @@
-const CACHE='almas-v2';
-const SHELL=['./','./index.html','./serveur.html','./manifest.webmanifest','./manifest-serveur.webmanifest','./icon-192.png','./icon-512.png'];
+const CACHE='almas-v3';
+const SHELL=['./','./index.html','./serveur.html','./manifest.webmanifest','./manifest-serveur.webmanifest','./icon-192.png','./icon-512.png','./bell.mp3'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
